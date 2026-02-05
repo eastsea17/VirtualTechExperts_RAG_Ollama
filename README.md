@@ -143,6 +143,24 @@ graph TD
 - **Intelligence**: Set `retrieve_top_k` (context depth).
 - **Debate Rules**: Set `max_turns_per_persona` and `max_tokens_per_turn`.
 
+## 🖥️ Streamlit Web Interface (New!)
+
+Launch the web-based UI for an interactive experience:
+
+```bash
+streamlit run streamlit_app.py
+```
+
+**Features:**
+
+- **Sidebar Controls**: Adjust all configuration parameters in real-time.
+- **One-Click Workflow**: Enter a topic and click "Run Analysis" to execute the full pipeline.
+- **Live Progress**: Watch the analysis progress through all 4 layers.
+- **Live Debate Transcript**: View each persona's arguments with color-coded styling.
+- **Report Preview & Download**: View and download the HTML report directly in the browser.
+
+![Streamlit UI](streamlit_screen.png)
+
 ## Key Features (V2.2 Updates)
 
 - **Multi-Source Data Acquisition**:
