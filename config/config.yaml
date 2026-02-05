@@ -40,6 +40,7 @@ intelligence_engine:
   collection_name: "virtual_experts_hub"
   chunk_size: 1000
   chunk_overlap: 200
+  retrieve_top_k: 3 # Number of chunks to retrieve per query
 
 # --- Ollama Model Settings ---
 ollama:

@@ -36,6 +36,7 @@ class AdvancedDebateGraph:
             temperature=0.7
         )
         
+        self.retrieve_k = self.config.get('intelligence_engine', {}).get('retrieve_top_k', 3)
         self.vector_manager = VectorStoreManager(config_path)
 
     def _retrieve_context(self, state: DebateState) -> str:
@@ -44,7 +45,7 @@ class AdvancedDebateGraph:
         if state['messages']:
             query = state['messages'][-1].content[-200:]
             
-        retriever = self.vector_manager.get_retriever(expert_id, k=3)
+        retriever = self.vector_manager.get_retriever(expert_id, k=self.retrieve_k)
         docs = retriever.invoke(query)
         return "\n\n".join([d.page_content for d in docs])
 
