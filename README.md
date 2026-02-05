@@ -109,19 +109,19 @@ Skip data collection and reuse an existing Expert Knowledge Base:
 
 ```mermaid
 graph TD
-    User[User Input: Topic] --> QE[Query Expander]
-    QE -->|Keywords| APIs{Data Acquisition}
-    APIs -->|Papers| OA[OpenAlex]
-    APIs -->|US Patents| USPTO[USPTO V1]
-    APIs -->|EU Patents| EPO[EPO OPS]
-    OA --> Combined[Combined Data]
+    User["User Input: Topic"] --> QE["Query Expander"]
+    QE -->|Keywords| APIs{"Data Acquisition"}
+    APIs -->|Papers| OA["OpenAlex"]
+    APIs -->|US Patents| USPTO["USPTO V1"]
+    APIs -->|EU Patents| EPO["EPO OPS"]
+    OA --> Combined["Combined Data"]
     USPTO --> Combined
     EPO --> Combined
-    Combined --> VS[Vector Store (ChromaDB)]
-    VS --> Debate[Debate Simulation (LangGraph)]
-    Debate -->|Mode A/B/C| Agents[Personas: Optimist, Skeptic, etc.]
-    Agents -->|Transcript| RG[Report Generator]
-    RG --> HTML[HTML Report + Appendix]
+    Combined --> VS["Vector Store (ChromaDB)"]
+    VS --> Debate["Debate Simulation (LangGraph)"]
+    Debate -->|"Mode A/B/C"| Agents["Personas: Optimist, Skeptic, etc."]
+    Agents -->|Transcript| RG["Report Generator"]
+    RG --> HTML["HTML Report + Appendix"]
 ```
 
 ## Customization

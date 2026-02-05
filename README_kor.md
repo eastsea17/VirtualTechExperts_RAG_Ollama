@@ -109,19 +109,19 @@ python main.py "Liquid Cooling for Data Centers" --mode a
 
 ```mermaid
 graph TD
-    User[사용자 입력: 주제] --> QE[쿼리 확장기]
-    QE -->|키워드| APIs{데이터 수집}
-    APIs -->|논문| OA[OpenAlex]
-    APIs -->|미국 특허| USPTO[USPTO V1]
-    APIs -->|유럽 특허| EPO[EPO OPS]
-    OA --> Combined[데이터 통합]
+    User["사용자 입력: 주제"] --> QE["쿼리 확장기"]
+    QE -->|키워드| APIs{"데이터 수집"}
+    APIs -->|논문| OA["OpenAlex"]
+    APIs -->|미국 특허| USPTO["USPTO V1"]
+    APIs -->|유럽 특허| EPO["EPO OPS"]
+    OA --> Combined["데이터 통합"]
     USPTO --> Combined
     EPO --> Combined
-    Combined --> VS[벡터 저장소 (ChromaDB)]
-    VS --> Debate[토론 시뮬레이션 (LangGraph)]
-    Debate -->|모드 A/B/C| Agents[페르소나: 낙관론자, 회의론자 등]
-    Agents -->|대화 기록| RG[보고서 생성기]
-    RG --> HTML[HTML 보고서 + 부록]
+    Combined --> VS["벡터 저장소 (ChromaDB)"]
+    VS --> Debate["토론 시뮬레이션 (LangGraph)"]
+    Debate -->|"모드 A/B/C"| Agents["페르소나: 낙관론자, 회의론자 등"]
+    Agents -->|대화 기록| RG["보고서 생성기"]
+    RG --> HTML["HTML 보고서 + 부록"]
 ```
 
 ## 사용자 정의
