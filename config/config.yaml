@@ -14,6 +14,9 @@ data_acquisition:
     contact_email: "my_email@example.com"
     fetch_limit: 50
 
+  tavily:
+    fetch_limit: 10
+
   epo:
     # Keys loaded from .env (EPO_CONSUMER_KEY, EPO_CONSUMER_SECRET)
     auth_url: "https://ops.epo.org/3.2/auth/accesstoken"
@@ -22,13 +25,13 @@ data_acquisition:
 
 # --- Defaults ---
 defaults:
-  topic: "liquid cooling"
+  topic: "ammonia cracking based hydrogen generation"
   mode: "a" # a, b, or c
 
 # --- Debate Rules ---
 debate_rules:
-  max_turns_per_persona: 5
-  max_tokens_per_turn: 1000 # Enforce conciseness
+  max_turns_per_persona: 2
+  max_tokens_per_turn: 500 # Enforce conciseness
 
 # --- Reporting ---
 reporting:
@@ -40,7 +43,7 @@ intelligence_engine:
   collection_name: "virtual_experts_hub"
   chunk_size: 1000
   chunk_overlap: 200
-  retrieve_top_k: 3 # Number of chunks to retrieve per query
+  retrieve_top_k: 5 # Number of chunks to retrieve per query
 
 # --- Ollama Model Settings ---
 ollama:

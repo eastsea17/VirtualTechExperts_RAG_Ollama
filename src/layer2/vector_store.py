@@ -45,7 +45,7 @@ class VectorStoreManager:
             page_content = f"Title: {paper['title']}\nAbstract: {paper['abstract']}\nYear: {paper.get('publication_year', 'N/A')}"
             
             metadata = {
-                "source": "openalex",
+                "source": paper.get('source', 'openalex'),
                 "expert_id": expert_id,
                 "topic": topic,
                 "paper_id": paper.get("id"),
@@ -107,9 +107,26 @@ class VectorStoreManager:
                     expert_map[e_id] = {
                         "expert_id": e_id,
                         "topic": meta.get("topic", "Unknown"),
-                        "doc_count": 0
+                        "doc_count": 0,
+                        "articles": 0,
+                        "patents": 0,
+                        "news": 0
                     }
                 expert_map[e_id]["doc_count"] += 1
+                
+                source = meta.get("source", "").lower()
+                if "openalex" in source:
+                    expert_map[e_id]["articles"] += 1
+                elif "uspto" in source or "epo" in source:
+                    expert_map[e_id]["patents"] += 1
+                elif "tavily" in source or "news" in source:
+                    expert_map[e_id]["news"] += 1
+                else: 
+                     # Fallback for older data or other sources
+                     if "patent" in source:
+                         expert_map[e_id]["patents"] += 1
+                     else:
+                         expert_map[e_id]["articles"] += 1
                 
             return list(expert_map.values())
         except Exception as e:
@@ -141,6 +158,32 @@ class VectorStoreManager:
         except Exception as e:
             print(f"[VectorStore] Error deleting expert: {e}")
             return False
+
+    def generate_next_expert_id(self) -> str:
+        """
+        Scans existing expert IDs, finds the highest number N in 'expert_N',
+        and returns 'expert_{N+1}'. Defaults to 'expert_1'.
+        """
+        try:
+            experts = self.list_experts()
+            max_id = 0
+            for exp in experts:
+                eid = exp.get('expert_id', '')
+                # Check for format 'expert_N'
+                if eid.startswith('expert_') and eid[7:].isdigit():
+                    try:
+                        num = int(eid[7:])
+                        if num > max_id:
+                            max_id = num
+                    except ValueError:
+                        pass
+            
+            return f"expert_{max_id + 1}"
+        except Exception as e:
+            print(f"[VectorStore] Error generating next ID: {e}")
+            # Fallback to random if something breaks
+            import uuid
+            return f"expert_{uuid.uuid4().hex[:8]}"
 
 if __name__ == "__main__":
     # Test

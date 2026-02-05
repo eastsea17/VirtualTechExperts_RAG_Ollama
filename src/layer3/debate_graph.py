@@ -112,22 +112,29 @@ class AdvancedDebateGraph:
 
     # --- GRAPH BUILDERS ---
     def build_mode_a(self):
-        # OPT -> SKEP -> MOD
+        # Mode A: Optimist <-> Skeptic (Sequential Loop)
         workflow = StateGraph(DebateState)
         workflow.add_node("optimist", self.optimist_node)
         workflow.add_node("skeptic", self.skeptic_node)
         workflow.add_node("moderator", self.moderator_node)
         
         workflow.set_entry_point("optimist")
-        workflow.add_edge("optimist", "skeptic")
-        workflow.add_edge("skeptic", "moderator")
+        
+        # 2 Speakers
+        def router_a(state):
+            limit = self.max_turns * 2
+            if state['turns'] >= limit:
+                return "moderator"
+            return "skeptic" if state['current_speaker'] == 'P_OPT' else "optimist"
+
+        workflow.add_conditional_edges("optimist", router_a, {"skeptic": "skeptic", "moderator": "moderator"})
+        workflow.add_conditional_edges("skeptic", router_a, {"optimist": "optimist", "moderator": "moderator"})
+        
         workflow.add_edge("moderator", END)
         return workflow.compile()
 
     def build_mode_b(self):
-        # Parallel: OPT->COMP and SKEP->REG then MOD
-        # Simplified linear approximation for Ollama (true parallel needs Async)
-        # OPT -> COMP -> SKEP -> REG -> MOD
+        # Mode B: Round Robin (Optimist -> Competitor -> Skeptic -> Regulator -> Loop)
         workflow = StateGraph(DebateState)
         workflow.add_node("optimist", self.optimist_node)
         workflow.add_node("competitor", self.competitor_node)
@@ -136,10 +143,27 @@ class AdvancedDebateGraph:
         workflow.add_node("moderator", self.moderator_node)
 
         workflow.set_entry_point("optimist")
-        workflow.add_edge("optimist", "competitor")
-        workflow.add_edge("competitor", "skeptic")
-        workflow.add_edge("skeptic", "regulator")
-        workflow.add_edge("regulator", "moderator")
+        
+        # 4 Speakers
+        def router_b(state):
+            limit = self.max_turns * 4
+            if state['turns'] >= limit:
+                return "moderator"
+            else:
+                current = state['current_speaker']
+                if current == 'P_OPT': return "competitor"
+                elif current == 'P_COMP': return "skeptic"
+                elif current == 'P_SKEP': return "regulator"
+                elif current == 'P_REG': return "optimist"
+                return "moderator" # Fallback
+
+        # Define edges properly for graph
+        # Optimist -> Competitor (or Mod)
+        workflow.add_conditional_edges("optimist", router_b, {"competitor": "competitor", "moderator": "moderator"})
+        workflow.add_conditional_edges("competitor", router_b, {"skeptic": "skeptic", "moderator": "moderator"})
+        workflow.add_conditional_edges("skeptic", router_b, {"regulator": "regulator", "moderator": "moderator"})
+        workflow.add_conditional_edges("regulator", router_b, {"optimist": "optimist", "moderator": "moderator"})
+        
         workflow.add_edge("moderator", END)
         return workflow.compile()
 
@@ -152,17 +176,14 @@ class AdvancedDebateGraph:
 
         workflow.set_entry_point("optimist")
         
-        def router(state):
-            # Dynamic check against max_turns (approx 3 turns per speaker normally, but let's just check total turns)
-            # If standard debate is 2 speakers (Opt/Skep), max_turns * 2 is roughly the limit for full exchanges.
-            # Let's say user --turn 5 means 5 rounds of exchange.
+        def router_c(state):
             limit = self.max_turns * 2 
             if state['turns'] >= limit: 
                 return "moderator"
             return "skeptic" if state['current_speaker'] == 'P_OPT' else "optimist"
 
-        workflow.add_conditional_edges("optimist", router, {"skeptic": "skeptic", "moderator": "moderator"})
-        workflow.add_conditional_edges("skeptic", router, {"optimist": "optimist", "moderator": "moderator"})
+        workflow.add_conditional_edges("optimist", router_c, {"skeptic": "skeptic", "moderator": "moderator"})
+        workflow.add_conditional_edges("skeptic", router_c, {"optimist": "optimist", "moderator": "moderator"})
         workflow.add_edge("moderator", END)
         return workflow.compile()
 

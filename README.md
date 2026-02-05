@@ -69,26 +69,24 @@ python main.py "Liquid Cooling for Data Centers" --mode a
   - `c`: Consensus (Deep Dive)
 - `--turn`: (Optional) Override maximum number of turns (e.g., `--turn 5`).
 
-### Reuse Expert Knowledge (New in V2.3)
-
-Skip data collection and reuse an existing Expert Knowledge Base:
+### Manage Virtual Experts (V2.5 Unified)
 
 1. **List Saved Experts**:
 
    ```bash
-   python main_reuse.py --list
+   python main.py --list
    ```
 
 2. **Reuse an Expert**:
 
    ```bash
-   python main_reuse.py --expert_id exp_12a1de9c --mode b
+   python main.py --expert_id exp_12a1de9c --mode b
    ```
 
 3. **Delete an Expert**:
 
    ```bash
-   python main_reuse.py --delete exp_12a1de9c
+   python main.py --delete exp_12a1de9c
    ```
 
 ## System Architecture

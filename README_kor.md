@@ -69,26 +69,24 @@ python main.py "Liquid Cooling for Data Centers" --mode a
   - `c`: 합의형 (심층 분석)
 - `--turn`: (선택) 최대 토론 턴 수 재정의 (예: `--turn 5`).
 
-### 전문가 지식 재사용 (V2.3 신기능)
-
-데이터 수집 과정을 건너뛰고 기존 전문가 지식 베이스를 재사용할 수 있습니다:
+### 전문가 지식 관리 (V2.5 통합)
 
 1. **저장된 전문가 목록 조회**:
 
    ```bash
-   python main_reuse.py --list
+   python main.py --list
    ```
 
 2. **전문가 재사용 실행**:
 
    ```bash
-   python main_reuse.py --expert_id exp_12a1de9c --mode b
+   python main.py --expert_id exp_12a1de9c --mode b
    ```
 
 3. **전문가 삭제 (삭제)**:
 
    ```bash
-   python main_reuse.py --delete exp_12a1de9c
+   python main.py --delete exp_12a1de9c
    ```
 
 ## 시스템 아키텍처
