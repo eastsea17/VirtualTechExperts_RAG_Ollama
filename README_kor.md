@@ -67,6 +67,7 @@ python main.py "Liquid Cooling for Data Centers" --mode a
   - `a`: 순차적 (표준)
   - `b`: 병렬적 (포괄적)
   - `c`: 합의형 (심층 분석)
+- `--turn`: (선택) 최대 토론 턴 수 재정의 (예: `--turn 5`).
 
 ### 전문가 지식 재사용 (V2.3 신기능)
 

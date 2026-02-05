@@ -25,12 +25,15 @@ def main():
     parser = argparse.ArgumentParser(description="Virtual Tech Experts & R&D System")
     parser.add_argument("topic", nargs='?', default=defaults.get('topic'), help="Research topic")
     parser.add_argument("--mode", default=defaults.get('mode', 'a'), choices=['a', 'b', 'c'], help="Debate Mode (a=Sequential, b=Parallel, c=Consensus)")
+    parser.add_argument("--turn", type=int, help="Override Max Turns per Persona (for Mode C mainly)", default=None)
     
     args = parser.parse_args()
     
     print(f"=== VTE-R&D System Started ===")
     print(f"Topic: {args.topic}")
     print(f"Mode: {args.mode.upper()}")
+    if args.turn:
+        print(f"Turn Limit Override: {args.turn}")
     
     expert_id = f"exp_{uuid.uuid4().hex[:8]}"
     
@@ -78,7 +81,7 @@ def main():
     # 4. Layer 3: Debate
     print(f"\n--- Layer 3: Debate Simulation (Mode {args.mode.upper()}) ---")
     debate = AdvancedDebateGraph()
-    final_state = debate.run(args.topic, expert_id, args.mode)
+    final_state = debate.run(args.topic, expert_id, args.mode, turns=args.turn)
     
     # Calculate Data Stats
     data_stats = {

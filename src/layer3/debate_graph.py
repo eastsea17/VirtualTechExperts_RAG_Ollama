@@ -152,7 +152,11 @@ class AdvancedDebateGraph:
         workflow.set_entry_point("optimist")
         
         def router(state):
-            if state['turns'] > 6: # 3 rounds each
+            # Dynamic check against max_turns (approx 3 turns per speaker normally, but let's just check total turns)
+            # If standard debate is 2 speakers (Opt/Skep), max_turns * 2 is roughly the limit for full exchanges.
+            # Let's say user --turn 5 means 5 rounds of exchange.
+            limit = self.max_turns * 2 
+            if state['turns'] >= limit: 
                 return "moderator"
             return "skeptic" if state['current_speaker'] == 'P_OPT' else "optimist"
 
@@ -161,8 +165,14 @@ class AdvancedDebateGraph:
         workflow.add_edge("moderator", END)
         return workflow.compile()
 
-    def run(self, topic: str, expert_id: str, mode: str = 'a'):
+    def run(self, topic: str, expert_id: str, mode: str = 'a', turns: int = None):
         print(f"Initializing Debate Mode {mode.upper()}...")
+        
+        # Override config default if turns is provided via CLI
+        if turns is not None and turns > 0:
+             self.max_turns = turns
+             print(f"[DebateGraph] Turn limit set to: {self.max_turns} per persona (approx).")
+        
         if mode == 'b':
             app = self.build_mode_b()
         elif mode == 'c':

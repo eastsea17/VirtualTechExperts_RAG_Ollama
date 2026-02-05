@@ -67,6 +67,7 @@ python main.py "Liquid Cooling for Data Centers" --mode a
   - `a`: Sequential (Standard)
   - `b`: Parallel (Comprehensive)
   - `c`: Consensus (Deep Dive)
+- `--turn`: (Optional) Override maximum number of turns (e.g., `--turn 5`).
 
 ### Reuse Expert Knowledge (New in V2.3)
 

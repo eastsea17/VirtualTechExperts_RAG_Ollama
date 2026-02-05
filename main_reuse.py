@@ -16,6 +16,7 @@ def main():
     parser.add_argument("--expert_id", type=str, help="ID of the expert to reuse")
     parser.add_argument("--delete", type=str, help="ID of the expert to delete")
     parser.add_argument("--mode", default="a", choices=['a', 'b', 'c'], help="Debate Mode")
+    parser.add_argument("--turn", type=int, help="Override Max Turns per Persona", default=None)
     
     args = parser.parse_args()
     
@@ -71,6 +72,8 @@ def main():
         print(f"\n=== Reusing Expert: {args.expert_id} ===")
         print(f"Topic: {topic}")
         print(f"Mode: {args.mode.upper()}")
+        if args.turn:
+            print(f"Turn Limit Override: {args.turn}")
         
         # Skip Layer 1 & 2 -> Jump to Layer 3 (Debate)
         print(f"\n--- Layer 3: Debate Simulation (Mode {args.mode.upper()}) ---")
@@ -84,7 +87,7 @@ def main():
             "Reused": True
         }
         
-        final_state = debate.run(topic, args.expert_id, args.mode)
+        final_state = debate.run(topic, args.expert_id, args.mode, turns=args.turn)
         
         # Layer 4: Reporting
         print("\n--- Layer 4: Reporting ---")
