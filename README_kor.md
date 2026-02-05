@@ -1,8 +1,147 @@
-# 가상 기술 전문가 및 R&D 시스템 (VTE-R&D) V2.2
+# 가상 기술 전문가 및 R&D 시스템 (VTE-R&D) V2.7
 
 ## 개요
 
-VTE-R&D는 기술 연구 및 전략 수립을 자동화하기 위해 설계된 고급 AI 에이전트 시스템입니다. 이 시스템은 과학 논문과 특허를 자율적으로 수집하고, 다양한 페르소나(낙관론자, 회의론자, 경쟁자, 규제 담당자)를 통해 결과를 토론하며, 전체 토론 기록이 포함된 포괄적인 HTML 보고서를 생성합니다.
+VTE-R&D는 기술 연구 및 전략 수립을 자동화하기 위해 설계된 고급 AI 에이전트 시스템입니다. 이 시스템은 과학 논문, 특허, 그리고 **실시간 시장 뉴스**를 자율적으로 수집하고, 다양한 페르소나(낙관론자, 회의론자, 경쟁자, 규제 담당자)를 통해 결과를 토론하며, 전체 토론 기록이 포함된 포괄적인 HTML 보고서를 생성합니다.
+
+## 주요 기능 (V2.7 업데이트)
+
+- **다중 소스 데이터 수집**:
+  - **OpenAlex**: 학술 논문 (API 연동).
+  - **PatentsView (USPTO)**: 미국 특허.
+  - **EPO (유럽 특허청)**: 유럽 특허.
+  - **Tavily (신규)**: 실시간 시장 뉴스 및 비즈니스 인사이트.
+- **순차적 전문가 ID**: 전문가 ID가 읽기 쉬운 순차적 ID (예: `expert_1`, `expert_2`)로 부여됩니다.
+- **상세 전문가 관리**: 각 전문가별 문서 구성(논문/특허/뉴스)을 상세히 확인할 수 있습니다.
+- **토론 턴 제어**: `--turn` 옵션을 통해 모든 모드에서 토론 길이를 엄격하게 제어합니다.
+- **고급 토론 그래프**:
+  - **모드 A (순차적 루프)**: 낙관론자 <-> 회의론자 반복.
+  - **모드 B (라운드 로빈)**: 4명의 페르소나 순환 토론.
+  - **모드 C (합의형)**: 합의 도출을 위한 반복 루프.
+- **상세 보고서**: 데이터 통계(뉴스 포함)와 전체 토론 기록이 포함된 HTML 보고서를 생성합니다.
+
+## 필수 조건
+
+- Python 3.10 이상
+- [Ollama](https://ollama.ai/) 설치 및 실행 중.
+- API 키:
+  - **Tavily** (뉴스 검색을 위해 필수).
+  - **USPTO/EPO** (선택 사항이지만 권장됨).
+
+## 설치 방법
+
+1. **저장소 복제**:
+
+   ```bash
+   git clone <repo_url>
+   cd 260205_VirtualTechExperts_Ollama
+   ```
+
+2. **의존성 설치**:
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **환경 설정**:
+   - `.env` 파일 생성:
+
+     ```bash
+     USPTO_API_KEY=your_key
+     EPO_CONSUMER_KEY=your_key
+     EPO_CONSUMER_SECRET=your_secret
+     TAVILY_API_KEY=tvly-xxxxxxxxxxxx
+     ```
+
+   - `config/config.yaml` 파일에서 모델 설정 및 검색 한도(`fetch_limit`)를 조정합니다.
+
+## 사용 방법
+
+연구 주제와 함께 메인 스크립트를 실행합니다:
+
+```bash
+python main.py "Liquid Cooling for Data Centers" --mode c --turn 5
+```
+
+### 인자 (Arguments)
+
+- `topic`: 연구 주제.
+- `--mode`:
+  - `a`: 순차적 루프 (표준)
+  - `b`: 라운드 로빈 (포괄적)
+  - `c`: 합의형 (심층 분석)
+- `--turn`: 페르소나당 최대 턴 수 재정의 (예: `--turn 5`는 화자당 5회 발언).
+
+### 가상 전문가 관리
+
+`main.py`를 통해 통합 관리됩니다:
+
+1. **저장된 전문가 목록 조회 (상세 통계 포함)**:
+
+   ```bash
+   python main.py --list
+   ```
+
+   *출력 예시:*
+
+   ```text
+   Expert ID       | Topic                | Art.  | Pat.  | News  | Total
+   -----------------------------------------------------------------------
+   expert_1        | Hydrogen Generation  | 150   | 50    | 5     | 205
+   expert_2        | Agentic AI           | 100   | 0     | 10    | 110
+   ```
+
+2. **전문가 재사용 실행**:
+
+   ```bash
+   python main.py --expert_id expert_1 --mode b
+   ```
+
+3. **전문가 삭제**:
+
+   ```bash
+   python main.py --delete expert_1
+   ```
+
+## 시스템 아키텍처
+
+1. **Layer 1: 데이터 수집**
+   - 논문(OpenAlex), 특허(USPTO/EPO), **뉴스(Tavily)** 수집.
+2. **Layer 2: 인텔리전스 엔진**
+   - 문서를 ChromaDB에 벡터화 저장.
+   - 순차적 ID 할당 (`expert_1`).
+3. **Layer 3: 토론 시뮬레이션**
+   - 벡터 스토어 컨텍스트(`retrieve_top_k`)를 활용하여 에이전트 토론.
+   - `max_turns` 설정에 따라 반복 루프 실행.
+4. **Layer 4: 보고서 작성**
+   - HTML 보고서 및 스타일이 적용된 대화 기록 생성.
+
+### 시스템 흐름도
+
+```mermaid
+graph TD
+    User["사용자 입력: 주제"] --> QE["쿼리 확장기"]
+    QE -->|키워드| APIs{"데이터 수집"}
+    APIs -->|논문| OA["OpenAlex"]
+    APIs -->|미국 특허| USPTO["USPTO V1"]
+    APIs -->|유럽 특허| EPO["EPO OPS"]
+    APIs -->|시장 뉴스| Tavily["Tavily API"]
+    OA --> Combined["데이터 통합"]
+    USPTO --> Combined
+    EPO --> Combined
+    Tavily --> Combined
+    Combined --> VS["벡터 저장소 (ChromaDB)"]
+    VS --> Debate["토론 시뮬레이션"]
+    Debate -->|"루프 (모드 A/B/C)"| Agents["페르소나: 낙관론자, 회의론자 등"]
+    Agents -->|대화 기록| RG["보고서 생성기"]
+    RG --> HTML["HTML 보고서"]
+```
+
+## 구성 (`config.yaml`)
+
+- **데이터 수집**: OpenAlex, USPTO, EPO, **Tavily**의 `fetch_limit` 설정.
+- **인텔리전스**: `retrieve_top_k` (컨텍스트 깊이).
+- **토론 규칙**: `max_turns_per_persona` 및 `max_tokens_per_turn`.
 
 ## 주요 기능 (V2.2 업데이트)
 
