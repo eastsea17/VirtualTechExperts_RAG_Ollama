@@ -1,0 +1,53 @@
+# Virtual Tech Experts & R&D Acceleration System Configuration
+
+# --- Data Acquisition Settings ---
+data_acquisition:
+  openalex:
+    base_url: "https://api.openalex.org/works"
+    user_agent_email: "research-agent@example.com" # Change to your actual email properly
+    fetch_limit: 200 # Number of raw papers to fetch before filtering
+    top_k_relevant: 10 # Number of top papers to select for the expert
+  
+  uspto:
+    base_url: "https://search.patentsview.org/api/v1/patent"
+    # api_key is now loaded from .env (USPTO_API_KEY)
+    contact_email: "my_email@example.com"
+    fetch_limit: 50
+
+  epo:
+    # Keys loaded from .env (EPO_CONSUMER_KEY, EPO_CONSUMER_SECRET)
+    auth_url: "https://ops.epo.org/3.2/auth/accesstoken"
+    service_url: "https://ops.epo.org/3.2/rest-services"
+    fetch_limit: 50
+
+# --- Defaults ---
+defaults:
+  topic: "liquid cooling"
+  mode: "a" # a, b, or c
+
+# --- Debate Rules ---
+debate_rules:
+  max_turns_per_persona: 5
+  max_tokens_per_turn: 1000 # Enforce conciseness
+
+# --- Reporting ---
+reporting:
+  model: "deepseek-v3.1:671b-cloud" # As requested
+
+# --- Intelligence Engine Settings ---
+intelligence_engine:
+  vector_db_path: "./chroma_db"
+  collection_name: "virtual_experts_hub"
+  chunk_size: 1000
+  chunk_overlap: 200
+
+# --- Ollama Model Settings ---
+ollama:
+  base_url: "http://localhost:11434"
+  # chat_model: "deepseek-r1:14b" # Local model (commented out) in your Ollama
+  chat_model: "deepseek-v3.1:671b-cloud" # Active Cloud Model
+  embedding_model: "nomic-embed-text" # Ensure this model is pulled
+
+# --- System Settings ---
+system:
+  log_level: "INFO"

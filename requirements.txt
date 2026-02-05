@@ -1,0 +1,10 @@
+langchain-ollama
+langchain-core
+langchain-chroma
+langgraph
+requests
+pyyaml
+chromadb
+python-dotenv
+markdown
+bs4
