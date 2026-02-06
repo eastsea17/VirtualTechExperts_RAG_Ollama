@@ -11,6 +11,9 @@ VTE-R&D is an advanced AI agent system designed to automate technical research a
   - **PatentsView (USPTO)**: US Patents.
   - **EPO (European Patent Office)**: European Patents.
   - **Tavily (New)**: Real-time market news and business insights.
+- **Intelligent Query Expansion**:
+  - **Synonym-Aware**: Automatically generates technical synonyms (e.g., "bio-based" -> "bio-derived").
+  - **Adaptive N-1 Strategy**: Prioritizes exact matches, then synonyms, then relaxed queries to maximize recall.
 - **Sequential Expert IDs**: Experts are now assigned clean, readable IDs (e.g., `expert_1`, `expert_2`).
 - **Detailed Expert Management**: View document breakdown (Articles/Patents/News) for each expert.
 - **Turn-Controlled Debate**: Strictly enforce debate length across all modes using `--turn`.
@@ -26,7 +29,7 @@ VTE-R&D is an advanced AI agent system designed to automate technical research a
 - [Ollama](https://ollama.ai/) installed and running.
 - API Keys:
   - **Tavily** (Required for News).
-  - **USPTO/EPO** (Optional but recommended).
+  - **USPTO/EPO** (Optional but recommended for comprehensive patent search).
 
 ## Installation
 
@@ -44,7 +47,7 @@ VTE-R&D is an advanced AI agent system designed to automate technical research a
    ```
 
 3. **Configure Environment**:
-   - Create `.env`:
+   - Create `.env` file:
 
      ```bash
      USPTO_API_KEY=your_key
@@ -57,13 +60,15 @@ VTE-R&D is an advanced AI agent system designed to automate technical research a
 
 ## Usage
 
+### 1. Command Line Interface (CLI)
+
 Run the main script with your research topic:
 
 ```bash
 python main.py "Liquid Cooling for Data Centers" --mode c --turn 5
 ```
 
-### Arguments
+**Arguments:**
 
 - `topic`: The research subject.
 - `--mode`:
@@ -72,51 +77,72 @@ python main.py "Liquid Cooling for Data Centers" --mode c --turn 5
   - `c`: Consensus (Deep Dive)
 - `--turn`: Override maximum turns per persona (e.g., `--turn 5` means 5 rounds *per speaker*).
 
-### Manage Virtual Experts
+### 2. Manage Virtual Experts (CLI)
 
 Unified management via `main.py`:
 
-1. **List Saved Experts (with Detailed Stats)**:
+- **List Saved Experts (with Detailed Stats)**:
 
-   ```bash
-   python main.py --list
-   ```
+  ```bash
+  python main.py --list
+  ```
 
-   *Output Example:*
+  *Output Example:*
 
-   ```text
-   Expert ID       | Topic                | Art.  | Pat.  | News  | Total
-   -----------------------------------------------------------------------
-   expert_1        | Hydrogen Generation  | 150   | 50    | 5     | 205
-   expert_2        | Agentic AI           | 100   | 0     | 10    | 110
-   ```
+  ```text
+  Expert ID       | Topic                | Art.  | Pat.  | News  | Total
+  -----------------------------------------------------------------------
+  expert_1        | Hydrogen Generation  | 150   | 50    | 5     | 205
+  expert_2        | Agentic AI           | 100   | 0     | 10    | 110
+  ```
 
-2. **Reuse an Expert**:
+- **Reuse an Expert**:
 
-   ```bash
-   python main.py --expert_id expert_1 --mode b
-   ```
+  ```bash
+  python main.py --expert_id expert_1 --mode b
+  ```
 
-3. **Delete an Expert**:
+- **Delete an Expert**:
 
-   ```bash
-   python main.py --delete expert_1
-   ```
+  ```bash
+  python main.py --delete expert_1
+  ```
+
+### 3. 🖥️ Streamlit Web Interface (GUI)
+
+Launch the web-based UI for an interactive experience:
+
+```bash
+streamlit run streamlit_app.py
+```
+
+**Features:**
+
+- **Sidebar Controls**: Adjust all configuration parameters in real-time.
+- **One-Click Workflow**: Enter a topic and click "Run Analysis" to execute the full pipeline.
+- **Live Progress**: Watch the analysis progress through all 4 layers.
+- **Live Debate Transcript**: View each persona's arguments with color-coded styling.
+- **Report Preview & Download**: View and download the HTML report directly in the browser.
+
+| Analysis View | Expert Hub View |
+| :---: | :---: |
+| ![Streamlit UI 1](streamlit_screen_1.png) | ![Streamlit UI 2](streamlit_screen_2.png) |
 
 ## System Architecture
 
 1. **Layer 1: Data Acquisition**
+   - Expands queries using LLM.
    - Fetches Papers (OpenAlex), Patents (USPTO/EPO), and **News (Tavily)**.
 2. **Layer 2: Intelligence Engine**
    - Vectorizes documents into ChromaDB.
    - Assigns sequential IDs (`expert_1`).
 3. **Layer 3: Debate Simulation**
-   - Agents debate utilizing the Vector Store context (`retrieve_top_k` chunks).
-   - Loops for `max_turns` rounds.
+   - Agents (Personas) debate utilizing the Vector Store context (`retrieve_top_k` chunks).
+   - Loops for `max_turns` rounds based on selected Mode.
 4. **Layer 4: Reporting**
    - Generates HTML Report + Styled Transcript.
 
-### System Flow
+### System Flow Diagram
 
 ```mermaid
 graph TD
@@ -137,153 +163,40 @@ graph TD
     RG --> HTML["HTML Report"]
 ```
 
+### Intelligent Query Expansion Logic
+
+The system uses a sophisticated **Adaptive N-1 Strategy** to maximize relevant data retrieval while minimizing noise.
+
+```mermaid
+graph TD
+    Start[User Topic] --> Ext[Extract Keywords <br/><i>(LLM)</i>]
+    Ext --> NodeCount{Topic Length < 10 words?}
+    
+    NodeCount -->|Yes| Syn[Generate Synonyms <br/><i>(LLM)</i>]
+    NodeCount -->|No| SkipSyn[Skip Synonyms]
+    
+    Syn --> ComboCheck{Keywords >= 3?}
+    SkipSyn --> ComboCheck
+    
+    ComboCheck -->|Yes| Combinations[Generate N-1 Combinations]
+    Combinations --> Rank[Rank Combinations <br/><i>(LLM)</i>]
+    Rank --> FinalList
+    
+    ComboCheck -->|No| FinalList[Final Query List]
+    
+    FinalList --> Execution[Adaptive Execution Sequence]
+    Execution --> Q1[1. Exact Phrase Query]
+    Q1 --> Check1{Sufficient Data?}
+    Check1 -->|Yes| Stop[Stop & Return]
+    Check1 -->|No| Q2[2. Synonym Queries]
+    Q2 --> Check2{Sufficient Data?}
+    Check2 -->|Yes| Stop
+    Check2 -->|No| Q3[3. Relaxed N-1 Queries]
+    Q3 --> Stop
+```
+
 ## Configuration (`config.yaml`)
 
 - **Data Acquisition**: Set `fetch_limit` for OpenAlex, USPTO, EPO, and **Tavily**.
 - **Intelligence**: Set `retrieve_top_k` (context depth).
 - **Debate Rules**: Set `max_turns_per_persona` and `max_tokens_per_turn`.
-
-## 🖥️ Streamlit Web Interface (New!)
-
-Launch the web-based UI for an interactive experience:
-
-```bash
-streamlit run streamlit_app.py
-```
-
-**Features:**
-
-- **Sidebar Controls**: Adjust all configuration parameters in real-time.
-- **One-Click Workflow**: Enter a topic and click "Run Analysis" to execute the full pipeline.
-- **Live Progress**: Watch the analysis progress through all 4 layers.
-- **Live Debate Transcript**: View each persona's arguments with color-coded styling.
-- **Report Preview & Download**: View and download the HTML report directly in the browser.
-
-![Streamlit UI](streamlit_screen.png)
-
-## Key Features (V2.2 Updates)
-
-- **Multi-Source Data Acquisition**:
-  - **OpenAlex**: Academic papers (via API).
-  - **PatentsView (USPTO)**: US Patents (API Key required).
-  - **EPO (European Patent Office)**: European Patents (API Key required).
-- **Secure Configuration**: API keys are managed safely via `.env`.
-- **Intelligent Query Expansion v2.0**:
-  - **Synonym-Aware Expansion**: Automatically generates technical synonyms (e.g., "bio-based" -> "bio-derived") for short implementation-focused queries.
-  - **Adaptive N-1 Strategy**: Prioritizes exact matches -> synonyms -> relaxed queries to maximize recall without noise.
-  - **Strict Phrase Extraction**: Uses LLMs to exact core technical phrases, avoiding hallucinated terms.
-- **Advanced Debate Graph**:
-  - **Mode A (Sequential)**: Propose -> Critique -> Synthesize.
-  - **Mode B (Parallel)**: Simultaneous critique from Competitor, Skeptic, and Regulator.
-  - **Mode C (Consensus)**: Back-and-forth iteration to reach agreement.
-- **Real-Time Visibility**: Live streaming of debate arguments to the terminal.
-- **Detailed Reporting**: Generates formatted HTML reports with data statistics and a full, styled debate transcript appendix.
-- **Customizable Models**: Supports Ollama local models and cloud endpoints (e.g., DeepSeek).
-
-## Prerequisites
-
-- Python 3.10+
-- [Ollama](https://ollama.ai/) installed and running.
-- API Keys for USPTO/EPO (optional but recommended for full data coverage).
-
-## Installation
-
-1. **Clone the repository**:
-
-   ```bash
-   git clone <repo_url>
-   cd 260205_VirtualTechExperts_Ollama
-   ```
-
-2. **Install Dependencies**:
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Configure Environment**:
-   - Rename `.env.example` (or create new) to `.env`:
-
-     ```bash
-     USPTO_API_KEY=your_key_here
-     EPO_CONSUMER_KEY=your_key_here
-     EPO_CONSUMER_SECRET=your_secret_here
-     ```
-
-   - Edit `config/config.yaml` to set your preferred Ollama models and debate rules.
-
-## Usage
-
-Run the main script with your research topic:
-
-```bash
-python main.py "Liquid Cooling for Data Centers" --mode a
-```
-
-### Arguments
-
-- `topic`: The research subject (e.g., "Generative AI", "Solid State Batteries").
-- `--mode`: Debate structure.
-  - `a`: Sequential (Standard)
-  - `b`: Parallel (Comprehensive)
-  - `c`: Consensus (Deep Dive)
-- `--turn`: (Optional) Override maximum number of turns (e.g., `--turn 5`).
-
-### Manage Virtual Experts (V2.5 Unified)
-
-1. **List Saved Experts**:
-
-   ```bash
-   python main.py --list
-   ```
-
-2. **Reuse an Expert**:
-
-   ```bash
-   python main.py --expert_id exp_12a1de9c --mode b
-   ```
-
-3. **Delete an Expert**:
-
-   ```bash
-   python main.py --delete exp_12a1de9c
-   ```
-
-## System Architecture
-
-1. **Layer 1: Data Acquisition**
-   - Expands user query.
-   - Fetches global docs from OpenAlex, USPTO, EPO.
-2. **Layer 2: Intelligence Engine**
-   - Vectorizes documents (ChromaDB + Ollama Embeddings).
-   - Creates an Expert Knowledge Base.
-3. **Layer 3: Debate Simulation (LangGraph)**
-   - Personas (Optimist, Skeptic, etc.) retrieve evidence from the Vector Store.
-   - Agents debate the topic, citing specific papers/patents.
-4. **Layer 4: Reporting**
-   - Summarizes the debate into a strategic executive report (HTML).
-   - Appends the full, styled transcript for reference.
-
-### System Flow
-
-```mermaid
-graph TD
-    User["User Input: Topic"] --> QE["Query Expander"]
-    QE -->|Keywords| APIs{"Data Acquisition"}
-    APIs -->|Papers| OA["OpenAlex"]
-    APIs -->|US Patents| USPTO["USPTO V1"]
-    APIs -->|EU Patents| EPO["EPO OPS"]
-    OA --> Combined["Combined Data"]
-    USPTO --> Combined
-    EPO --> Combined
-    Combined --> VS["Vector Store (ChromaDB)"]
-    VS --> Debate["Debate Simulation (LangGraph)"]
-    Debate -->|"Mode A/B/C"| Agents["Personas: Optimist, Skeptic, etc."]
-    Agents -->|Transcript| RG["Report Generator"]
-    RG --> HTML["HTML Report + Appendix"]
-```
-
-## Customization
-
-- **Personas**: Modify `config/personas.yaml` to change agent personalities (e.g., "Elon Musk style" vs "Conservative Engineer").
-- **Models**: Change LLMs in `config/config.yaml` (supports any Ollama-compatible model).

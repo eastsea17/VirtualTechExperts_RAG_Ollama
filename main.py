@@ -13,7 +13,7 @@ from src.layer1.epo_client import EPOClient
 from src.layer1.uspto_client import USPTOClient
 from src.layer2.vector_store import VectorStoreManager
 from src.layer3.debate_graph import AdvancedDebateGraph
-from src.report_generator import ReportGenerator
+from src.layer3.report_generator import ReportGenerator
 
 
 def main():
