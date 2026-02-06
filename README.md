@@ -169,30 +169,19 @@ The system uses a sophisticated **Adaptive N-1 Strategy** to maximize relevant d
 
 ```mermaid
 graph TD
-    Start[User Topic] --> Ext["Extract Keywords <br/><i>(LLM)</i>"]
-    Ext --> NodeCount{Topic Length < 10 words?}
+    Start[User Topic] --> Ext["Extract Keywords (LLM)"]
+    Ext --> Gen{Generate Queries}
     
-    NodeCount -->|Yes| Syn["Generate Synonyms <br/><i>(LLM)</i>"]
-    NodeCount -->|No| SkipSyn[Skip Synonyms]
+    Gen -->|Priority 1| Exact["Exact Phrases"]
+    Gen -->|Priority 2| Syn["Synonyms (if topic short)"]
+    Gen -->|Priority 3| Relax["N-1 Combinations"]
     
-    Syn --> ComboCheck{Keywords >= 3?}
-    SkipSyn --> ComboCheck
+    Exact & Syn & Relax --> Exec[Adaptive Execution]
     
-    ComboCheck -->|Yes| Combinations[Generate N-1 Combinations]
-    Combinations --> Rank["Rank Combinations <br/><i>(LLM)</i>"]
-    Rank --> FinalList
-    
-    ComboCheck -->|No| FinalList[Final Query List]
-    
-    FinalList --> Execution[Adaptive Execution Sequence]
-    Execution --> Q1[1. Exact Phrase Query]
-    Q1 --> Check1{Sufficient Data?}
-    Check1 -->|Yes| Stop[Stop & Return]
-    Check1 -->|No| Q2[2. Synonym Queries]
-    Q2 --> Check2{Sufficient Data?}
-    Check2 -->|Yes| Stop
-    Check2 -->|No| Q3[3. Relaxed N-1 Queries]
-    Q3 --> Stop
+    Exec --> Check{Sufficient Data?}
+    Check -->|Yes| End[Stop & Return]
+    Check -->|No| Next[Try Next Priority]
+    Next --> Exec
 ```
 
 ## Configuration (`config.yaml`)

@@ -169,30 +169,19 @@ graph TD
 
 ```mermaid
 graph TD
-    Start[사용자 주제] --> Ext["키워드 추출 <br/><i>(LLM)</i>"]
-    Ext --> NodeCount{주제 길이 < 10 단어?}
+    Start[사용자 주제] --> Ext["키워드 추출 (LLM)"]
+    Ext --> Gen{쿼리 생성 전략}
     
-    NodeCount -->|Yes| Syn["동의어 생성 <br/><i>(LLM)</i>"]
-    NodeCount -->|No| SkipSyn[동의어 생략]
+    Gen -->|1순위| Exact["정확한 구문 (Exact Phrases)"]
+    Gen -->|2순위| Syn["동의어 (Synonyms) <br/> *주제가 짧을 경우"]
+    Gen -->|3순위| Relax["N-1 조합 (N-1 Combinations)"]
     
-    Syn --> ComboCheck{키워드 개수 >= 3?}
-    SkipSyn --> ComboCheck
+    Exact & Syn & Relax --> Exec[적응형 실행 (Adaptive Execution)]
     
-    ComboCheck -->|Yes| Combinations[N-1 조합 생성]
-    Combinations --> Rank["조합 순위 선정 <br/><i>(LLM)</i>"]
-    Rank --> FinalList
-    
-    ComboCheck -->|No| FinalList[최종 쿼리 리스트]
-    
-    FinalList --> Execution[적응형 실행 시퀀스]
-    Execution --> Q1[1. 정확한 구문 쿼리]
-    Q1 --> Check1{데이터 충분?}
-    Check1 -->|Yes| Stop[종료 및 반환]
-    Check1 -->|No| Q2[2. 동의어 쿼리]
-    Q2 --> Check2{데이터 충분?}
-    Check2 -->|Yes| Stop
-    Check2 -->|No| Q3[3. 완화된 N-1 쿼리]
-    Q3 --> Stop
+    Exec --> Check{데이터 충분?}
+    Check -->|Yes| End[종료 및 반환]
+    Check -->|No| Next[다음 순위 실행]
+    Next --> Exec
 ```
 
 ## 설정 (`config.yaml`)
