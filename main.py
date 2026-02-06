@@ -183,6 +183,13 @@ def main():
     print(f"... and {len(combined_data) - 20} more items." if len(combined_data) > 20 else "")
     print("-" * 80)
 
+    # --- CSV Export (New) ---
+    print("\n   > Exporting raw data log...")
+    rg_temp = ReportGenerator() # Temp instance for export
+    csv_path = rg_temp.export_data_collection_csv(combined_data, args.topic)
+    if csv_path:
+        print(f"   > CSV Log Saved: {csv_path}")
+
     # 3. Layer 2: Vector Store
     print("\n--- Layer 2: Intelligence Engine ---")
     # vsm already initialized at top

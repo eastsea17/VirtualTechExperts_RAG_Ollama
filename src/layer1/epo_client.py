@@ -72,7 +72,17 @@ class EPOClient:
         if ' AND ' in keyword or ' OR ' in keyword:
              cql_query = keyword
         else:
-             cql_query = f'ti="{keyword}"' # 단순 키워드면 제목 검색
+             # 이미 따옴표로 감싸져 있는 경우와 아닌 경우 구분
+             clean_key = keyword.strip()
+             if clean_key.startswith('"') and clean_key.endswith('"'):
+                 cql_query = f'ta={clean_key}' # ta="phrase" (Title or Abstract)
+             else:
+                 cql_query = f'ta="{clean_key}"' # ta="word"
+        
+        
+        # [User Request] US, WO, EP 우선 검색 (Validation Completed)
+        # pn=US% (wildcard) returns 404. pn="US" works correctly.
+        cql_query = f'({cql_query}) AND (pn="US" OR pn="WO" OR pn="EP")'
              
         params = {'q': cql_query}
         search_url = f"{self.service_url}/published-data/search"

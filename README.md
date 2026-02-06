@@ -168,7 +168,10 @@ streamlit run streamlit_app.py
   - **PatentsView (USPTO)**: US Patents (API Key required).
   - **EPO (European Patent Office)**: European Patents (API Key required).
 - **Secure Configuration**: API keys are managed safely via `.env`.
-- **Intelligent Query Expansion**: Converts broad topics into precise boolean search queries using LLMs.
+- **Intelligent Query Expansion v2.0**:
+  - **Synonym-Aware Expansion**: Automatically generates technical synonyms (e.g., "bio-based" -> "bio-derived") for short implementation-focused queries.
+  - **Adaptive N-1 Strategy**: Prioritizes exact matches -> synonyms -> relaxed queries to maximize recall without noise.
+  - **Strict Phrase Extraction**: Uses LLMs to exact core technical phrases, avoiding hallucinated terms.
 - **Advanced Debate Graph**:
   - **Mode A (Sequential)**: Propose -> Critique -> Synthesize.
   - **Mode B (Parallel)**: Simultaneous critique from Competitor, Skeptic, and Regulator.

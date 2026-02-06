@@ -15,7 +15,10 @@ from src.layer1.uspto_client import USPTOClient
 from src.layer1.market_client import MarketClient
 
 # Configuration
-TEST_TOPIC = "ammonia cracking based hydrogen generation"
+import argparse
+
+# Configuration
+DEFAULT_TOPIC = "ammonia cracking for hydrogen production"
 RESULTS_DIR = "results"
 
 def ensure_results_dir():
@@ -88,8 +91,14 @@ def normalize_data_for_csv(data: List[Dict[str, Any]], source_type: str) -> List
     return normalized
 
 def run_layer1_test():
+    parser = argparse.ArgumentParser(description="Test Layer 1 Data Acquisition")
+    parser.add_argument("--topic", type=str, default=DEFAULT_TOPIC, help="Research topic to test")
+    args = parser.parse_args()
+    
+    topic = args.topic
+    
     print(f"\n🚀 Starting Layer 1 Data Acquisition Test")
-    print(f"🎯 Topic: {TEST_TOPIC}")
+    print(f"🎯 Topic: {topic}")
     print("----------------------------------------------------------------")
     
     ensure_results_dir()
@@ -97,8 +106,10 @@ def run_layer1_test():
     # 1. Query Expansion
     print("\n[1] Generating Search Strategy via QueryExpander...")
     qe = QueryExpander()
-    queries = qe.generate_search_queries(TEST_TOPIC)
-    keywords = qe._extract_keywords(TEST_TOPIC)
+    print("\n[1] Generating Search Strategy via QueryExpander...")
+    qe = QueryExpander()
+    queries = qe.generate_search_queries(topic)
+    keywords = qe._extract_keywords(topic)
     
     print(f"    > Extracted Keywords: {keywords}")
     print(f"    > Generated Queries ({len(queries)}):")

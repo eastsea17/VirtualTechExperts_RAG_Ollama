@@ -155,6 +155,107 @@ class ReportGenerator:
             print(f"[ReportGenerator] Failed to generate report: {e}")
             return None
 
+    def export_data_collection_csv(self, gathered_data: list, topic: str) -> str:
+        """
+        Exports the gathered raw data (Papers, Patents, News) to a CSV file.
+        Useful for auditing what the agents actually found.
+        """
+        if not gathered_data:
+            return None
+            
+        import csv
+        
+        # Normalize Data
+        normalized = []
+        for item in gathered_data:
+            # Determine Source Type based on available keys or explicit 'source' key
+            source_type = item.get('source', 'Unknown')
+            
+            # Simple heuristic if 'source' key is missing or generic
+            if source_type == 'Unknown':
+               if 'patent_number' in item: source_type = 'USPTO'
+               elif 'publication_number' in item: source_type = 'EPO'
+               elif 'id' in item and 'openalex' in str(item.get('id', '')): source_type = 'OpenAlex'
+               elif 'url' in item: source_type = 'Tavily'
+            
+            row = {
+                "Source": source_type,
+                "Type": "Unknown",
+                "ID": "N/A",
+                "Title": "N/A",
+                "Date": "N/A",
+                "Abstract": "N/A",
+                "Link": "N/A"
+            }
+            
+            # --- Normalization Logic ---
+            # OpenAlex Papers
+            if source_type == "OpenAlex" or (item.get('id') and 'openalex' in str(item.get('id'))):
+                row["Source"] = "OpenAlex"
+                row["Type"] = "Paper"
+                row["ID"] = item.get('id', 'N/A')
+                row["Title"] = item.get('title', 'N/A')
+                row["Date"] = str(item.get('publication_year', 'N/A'))
+                row["Abstract"] = str(item.get('abstract', ''))[:500] 
+                row["Link"] = item.get('doi', item.get('id', ''))
+
+            # EPO Patents
+            elif source_type == "EPO" or 'epo' in source_type.lower():
+                row["Source"] = "EPO"
+                row["Type"] = "Patent"
+                row["ID"] = item.get('id', 'N/A')
+                row["Title"] = item.get('title', 'N/A')
+                row["Date"] = item.get('published_date', 'N/A')
+                row["Abstract"] = item.get('abstract', 'N/A')[:500]
+                if item.get('url'):
+                     row["Link"] = item.get('url')
+                elif item.get('id'):
+                     try:
+                        parts = item.get('id','').split('.')
+                        if len(parts) >= 3:
+                            row["Link"] = f"https://worldwide.espacenet.com/publicationDetails/biblio?CC={parts[0]}&NR={parts[1]}&KC={parts[2]}"
+                     except: pass
+            
+            # USPTO Patents
+            elif source_type == "USPTO" or 'patent_number' in item:
+                row["Source"] = "USPTO"
+                row["Type"] = "Patent"
+                row["ID"] = item.get('patent_number', 'N/A')
+                row["Title"] = item.get('title', 'N/A')
+                row["Date"] = item.get('date', 'N/A')
+                row["Abstract"] = item.get('abstract', 'N/A')[:500]
+                row["Link"] = f"https://patents.google.com/patent/US{item.get('patent_number','')}"
+
+            # Tavily News
+            elif source_type == "Tavily" or 'content' in item:
+                row["Source"] = "Tavily"
+                row["Type"] = "News"
+                row["ID"] = "N/A"
+                row["Title"] = item.get('title', 'N/A')
+                row["Date"] = item.get('published_date', 'N/A')
+                row["Abstract"] = item.get('content', 'N/A')[:500]
+                row["Link"] = item.get('url', 'N/A')
+            
+            normalized.append(row)
+
+        # Generate Filename
+        safe_topic = "".join([c if c.isalnum() else "_" for c in topic]).strip("_")
+        import re
+        safe_topic = re.sub(r'_+', '_', safe_topic)[:50]
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{self.output_dir}/raw_data_{timestamp}_{safe_topic}.csv"
+
+        # Write CSV
+        if normalized:
+            keys = normalized[0].keys()
+            with open(filename, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.DictWriter(f, fieldnames=keys)
+                writer.writeheader()
+                writer.writerows(normalized)
+            print(f"[ReportGenerator] Raw Data Exported: {filename}")
+            return filename
+        return None
+
 if __name__ == "__main__":
     # Test
     rg = ReportGenerator()

@@ -168,7 +168,10 @@ streamlit run streamlit_app.py
   - **PatentsView (USPTO)**: 미국 특허 (API 키 필요).
   - **EPO (유럽 특허청)**: 유럽 특허 (API 키 필요).
 - **보안 설정**: API 키는 `.env` 파일을 통해 안전하게 관리됩니다.
-- **지능형 쿼리 확장**: LLM을 사용하여 사용자의 광범위한 주제를 정밀한 불리언 검색 쿼리로 변환합니다.
+- **지능형 쿼리 확장 v2.0 (Intelligent Query Expansion)**:
+  - **동의어 기반 확장 (Synonym-Aware Expansion)**: 짧은 기술적 쿼리(예: "bio-based" -> "bio-derived")에 대해 동의어를 자동 생성하여 검색 범위를 확장합니다.
+  - **적응형 N-1 전략 (Adaptive N-1 Strategy)**: 정확 일치 -> 동의어 -> 완화된 쿼리 순으로 검색하여 노이즈 없이 재현율(Recall)을 극대화합니다.
+  - **정밀 구문 추출**: LLM을 사용하여 핵심 기술 구문만을 추출, 불필요한 용어(Hallucination) 추가를 방지합니다.
 - **고급 토론 그래프 (LangGraph)**:
   - **모드 A (순차적)**: 제안 -> 비판 -> 종합.
   - **모드 B (병렬적)**: 경쟁자, 회의론자, 규제 담당자의 동시 비판.

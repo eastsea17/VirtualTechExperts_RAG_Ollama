@@ -48,6 +48,30 @@ class QueryExpander:
             print(f"[QueryExpander] Extraction Error: {e}")
             return [topic]
 
+    def _generate_synonyms(self, topic: str) -> List[str]:
+        """
+        Generates interchangeable technical synonyms for short topics (<10 words).
+        """
+        # Quick word count check
+        if len(topic.split()) >= 10:
+            return []
+            
+        prompt = f"""
+        Generate 2-3 interchangeable technical synonyms/variations for: "{topic}"
+        Return ONLY a comma-separated list of phrases.
+        Example: "coprocessing of bio feedstock", "co-processing of biomass"
+        """
+        try:
+            response = self.llm.invoke(prompt)
+            content = response.content.strip()
+            # Cleanup quotes
+            content = content.replace('"', '').replace("'", "")
+            synonyms = [s.strip() for s in content.split(',')]
+            return [s for s in synonyms if s and len(s) > 3][:3]
+        except Exception as e:
+            print(f"[QueryExpander] Synonym Gen Error: {e}")
+            return []
+
     def _rank_combinations(self, topic: str, combos: List[Tuple[str]], limit: int = 2) -> List[Tuple[str]]:
         """
         Asks LLM which keyword subsets best preserve the original topic's intent.
@@ -106,6 +130,17 @@ class QueryExpander:
         # Note: Some APIs might struggle with complex quotes, but standard for exact phrase is quotes.
         full_query = " AND ".join([f'"{k}"' for k in keywords])
         queries.append(full_query)
+        
+        # Priority 1.5: Synonyms (New)
+        # Verify if synonym expansion is applicable
+        if len(topic.split()) < 10:
+            synonyms = self._generate_synonyms(topic)
+            if synonyms:
+                # print(f"[QueryExpander] Generated Synonyms: {synonyms}")
+                for syn in synonyms:
+                    # Treat synonym as a direct query (or should we extract phrases? usually synonym is a full phrase replacement)
+                    # We'll use the whole synonym phrase
+                    queries.append(f'"{syn}"')
         
         N = len(keywords)
         # If too simple, no need to relax
