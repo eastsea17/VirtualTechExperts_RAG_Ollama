@@ -169,17 +169,17 @@ graph TD
 
 ```mermaid
 graph TD
-    Start[사용자 주제] --> Ext[키워드 추출 <br/><i>(LLM)</i>]
+    Start[사용자 주제] --> Ext["키워드 추출 <br/><i>(LLM)</i>"]
     Ext --> NodeCount{주제 길이 < 10 단어?}
     
-    NodeCount -->|Yes| Syn[동의어 생성 <br/><i>(LLM)</i>]
+    NodeCount -->|Yes| Syn["동의어 생성 <br/><i>(LLM)</i>"]
     NodeCount -->|No| SkipSyn[동의어 생략]
     
     Syn --> ComboCheck{키워드 개수 >= 3?}
     SkipSyn --> ComboCheck
     
     ComboCheck -->|Yes| Combinations[N-1 조합 생성]
-    Combinations --> Rank[조합 순위 선정 <br/><i>(LLM)</i>]
+    Combinations --> Rank["조합 순위 선정 <br/><i>(LLM)</i>"]
     Rank --> FinalList
     
     ComboCheck -->|No| FinalList[최종 쿼리 리스트]

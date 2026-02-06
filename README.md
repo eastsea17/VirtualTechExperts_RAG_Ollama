@@ -169,17 +169,17 @@ The system uses a sophisticated **Adaptive N-1 Strategy** to maximize relevant d
 
 ```mermaid
 graph TD
-    Start[User Topic] --> Ext[Extract Keywords <br/><i>(LLM)</i>]
+    Start[User Topic] --> Ext["Extract Keywords <br/><i>(LLM)</i>"]
     Ext --> NodeCount{Topic Length < 10 words?}
     
-    NodeCount -->|Yes| Syn[Generate Synonyms <br/><i>(LLM)</i>]
+    NodeCount -->|Yes| Syn["Generate Synonyms <br/><i>(LLM)</i>"]
     NodeCount -->|No| SkipSyn[Skip Synonyms]
     
     Syn --> ComboCheck{Keywords >= 3?}
     SkipSyn --> ComboCheck
     
     ComboCheck -->|Yes| Combinations[Generate N-1 Combinations]
-    Combinations --> Rank[Rank Combinations <br/><i>(LLM)</i>]
+    Combinations --> Rank["Rank Combinations <br/><i>(LLM)</i>"]
     Rank --> FinalList
     
     ComboCheck -->|No| FinalList[Final Query List]
