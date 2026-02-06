@@ -2,6 +2,7 @@ import requests
 import yaml
 import os
 import base64
+import time  # Rate limiting을 위해 추가
 from typing import List, Dict, Any
 from dotenv import load_dotenv
 
@@ -15,13 +16,20 @@ class EPOClient:
     """
     
     def __init__(self, config_path: str = "config/config.yaml"):
-        with open(config_path, 'r') as f:
-            self.config = yaml.safe_load(f)
+        # config 로드 시 예외 처리 추가
+        try:
+            with open(config_path, 'r') as f:
+                self.config = yaml.safe_load(f)
+        except Exception:
+            self.config = {}
             
         self.consumer_key = os.getenv("EPO_CONSUMER_KEY")
         self.consumer_secret = os.getenv("EPO_CONSUMER_SECRET")
         
-        epo_cfg = self.config['data_acquisition'].get('epo', {})
+        # config 파일이 없거나 키가 없을 경우를 대비해 기본값 설정
+        data_acq = self.config.get('data_acquisition', {}) if self.config else {}
+        epo_cfg = data_acq.get('epo', {})
+        
         self.auth_url = epo_cfg.get('auth_url', "https://ops.epo.org/3.2/auth/accesstoken")
         self.service_url = epo_cfg.get('service_url', "https://ops.epo.org/3.2/rest-services")
         self.limit = epo_cfg.get('fetch_limit', 20)
@@ -60,20 +68,12 @@ class EPOClient:
             "Accept": "application/json"
         }
         
-        
-        # Determine CQL query
-        # If the keyword contains boolean operators or quotes, assume it's a constructed query
-        # and search in the default index (often title/abstract/fulltext) or assume user knows CQL.
-        # But 'QueryExpander' returns "Term" AND "Term". 
-        # For EPO OPS, broad search on title/abs is better for these.
-        # Try wrapping in parens for safety? Or just raw.
-        # Raw "A" AND "B" is usually valid CQL for default fields.
+        # CQL 쿼리 결정 로직
         if ' AND ' in keyword or ' OR ' in keyword:
              cql_query = keyword
         else:
-             cql_query = f'ti="{keyword}"'
+             cql_query = f'ti="{keyword}"' # 단순 키워드면 제목 검색
              
-        # Use params for proper encoding
         params = {'q': cql_query}
         search_url = f"{self.service_url}/published-data/search"
         
@@ -85,21 +85,13 @@ class EPOClient:
             response.raise_for_status()
             
             data = response.json()
-            # Parsing logic would depend on specific EPO JSON structure
-            # Parsing logic for EPO OPS JSON (v3.2)
             results = []
             
-            # Parsing logic for EPO OPS JSON (v3.2)
-            results = []
-            
-            # Navigate efficiently through the deep structure
+            # OPS JSON 구조 탐색
             ops_data = data.get('ops:world-patent-data', {})
-            
-            # Note: The structure varies slightly between services.
-            # For Search, it is often direct: world-patent-data -> biblio-search
             biblio = ops_data.get('ops:biblio-search', {})
             
-            # Fallback for standardization wrapper if present (sometimes happens in other endpoints)
+            # 표준화된 래퍼(standardization)가 있는 경우 처리
             if not biblio:
                  std_data = ops_data.get('ops:standardization', {})
                  output = std_data.get('ops:output', {})
@@ -108,17 +100,19 @@ class EPOClient:
             search_result = biblio.get('ops:search-result', {})
             publications = search_result.get('ops:publication-reference', [])
             
-            # Ensure list
-            if not isinstance(publications, list):
+            # 결과가 1개일 경우 dict로 오므로 리스트로 변환
+            if isinstance(publications, dict):
                 publications = [publications]
                 
             print(f"[EPOClient] Found {len(publications)} raw patent references.")
                 
-            # Iterate through publications
-            for pub in publications:
+            for i, pub in enumerate(publications):
+                # 테스트 모드나 API 부하 방지를 위해 상위 N개만 상세 조회
+                if i >= self.limit: 
+                    break
+
                 try:
-                    # Extract Document ID
-                    # Document-id can be a list or dict. We want '@document-id-type': 'docdb'
+                    # Document ID 추출
                     doc_id_list = pub.get('document-id', [])
                     if isinstance(doc_id_list, dict): doc_id_list = [doc_id_list]
                     
@@ -128,7 +122,6 @@ class EPOClient:
                             docdb_obj = ref
                             break
                     
-                    # Fallback if no docdb type found explicitly (or if API changes simplified)
                     if not docdb_obj and doc_id_list:
                         docdb_obj = doc_id_list[0]
                         
@@ -142,16 +135,17 @@ class EPOClient:
                     
                     full_id = f"{country}.{doc_number}.{kind}"
                     
-                    # Fetch detailed abstract and title using docdb ID
-                    # Note: We prioritize fetching details because OPS Search often lacks them in result view
+                    # [중요] 상세 정보(제목/초록) 가져오기
+                    # OPS API 호출 제한을 피하기 위해 약간의 딜레이 추가
+                    time.sleep(0.2) 
                     title, abstract, applicant = self._fetch_patent_details(country, doc_number, kind)
                     
-                    # Store result
+                    # 결과 저장
                     results.append({
                         "source": "EPO",
                         "id": full_id,
-                        "title": title if title else f"Patent {country}{doc_number}",
-                        "abstract": abstract if abstract else "Abstract not available via OPS.",
+                        "title": title if title else f"Patent {full_id}",
+                        "abstract": abstract if abstract else "Abstract details not available.",
                         "published_date": date,
                         "url": f"https://worldwide.espacenet.com/publicationDetails/biblio?CC={country}&NR={doc_number}&KC={kind}",
                         "authors": [applicant] if applicant else [],
@@ -159,7 +153,7 @@ class EPOClient:
                     })
                     
                 except Exception as ex:
-                    print(f"[EPOClient] Parse error for one item: {ex}")
+                    print(f"[EPOClient] Parse error for item {i}: {ex}")
                     continue
             
             return results
@@ -169,50 +163,93 @@ class EPOClient:
 
     def _fetch_patent_details(self, country, number, kind):
         """
-        Helper to fetch Title and Abstract for a specific patent.
+        특허의 상세 정보(제목, 초록)를 가져옵니다.
+        List/Dict 구조를 유연하게 처리하고, 영어가 없으면 다른 언어라도 가져오도록 개선됨.
         """
         try:
-            url = f"{self.service_url}/published-data/publication/docdb/{country}/{number}/{kind}/biblio"
+            # OPS API requires the ID to be a single segment in format 'CC.Number.Kind'
+            # Previous version using slashes caused 404s.
+            doc_id_str = f"{country}.{number}.{kind}"
+            url = f"{self.service_url}/published-data/publication/docdb/{doc_id_str}/biblio"
+            
             headers = {"Authorization": f"Bearer {self.access_token}", "Accept": "application/json"}
             res = requests.get(url, headers=headers, timeout=10)
-            if res.status_code != 200: return None, None, None
+            
+            if res.status_code != 200: 
+                # print(f"[EPOClient] Detail fetch failed for {doc_id_str}: {res.status_code}")
+                return None, None, None
             
             b_data = res.json()
-            biblio = b_data.get('ops:world-patent-data', {}).get('exchange-documents', {}).get('exchange-document', {})
             
-            # Title
-            title = "Unknown Patent"
-            titles = biblio.get('bibliographic-data', {}).get('invention-title', [])
+            # 구조가 깊으므로 안전하게 가져오기 (ops: 네임스페이스 주의)
+            # 보통 ops:world-patent-data -> exchange-documents -> exchange-document
+            wpd = b_data.get('ops:world-patent-data', {})
+            eds = wpd.get('exchange-documents', {})
+            ed = eds.get('exchange-document', {})
+            
+            # exchange-document가 리스트일 수 있음 (드물지만)
+            if isinstance(ed, list) and len(ed) > 0:
+                ed = ed[0]
+            
+            biblio_data = ed.get('bibliographic-data', {})
+
+            # 1. Title Extraction
+            title = None
+            titles = biblio_data.get('invention-title', [])
             if isinstance(titles, dict): titles = [titles]
+            
+            # 우선 영어(@lang='en')를 찾고, 없으면 첫 번째 것을 사용
             for t in titles:
                 if t.get('@lang') == 'en':
-                    title = t.get('$', title)
+                    title = t.get('$', None)
                     break
+            if not title and titles:
+                title = titles[0].get('$', "Unknown Title")
             
-            # Abstract
+            # 2. Abstract Extraction
             abstract = None
-            abst_obj = biblio.get('abstract', [])
+            abst_obj = ed.get('abstract', [])
             if isinstance(abst_obj, dict): abst_obj = [abst_obj]
+            
+            selected_abs = None
+            # 우선 영어 초록 찾기
             for a in abst_obj:
                 if a.get('@lang') == 'en':
-                    p_text = a.get('p', {})
-                    if isinstance(p_text, list): 
-                        abstract = " ".join([p.get('$', '') for p in p_text])
-                    else:
-                        abstract = p_text.get('$', '')
+                    selected_abs = a
                     break
+            # 영어 없으면 첫 번째 초록 사용
+            if not selected_abs and abst_obj:
+                selected_abs = abst_obj[0]
+                
+            if selected_abs:
+                p_text = selected_abs.get('p', [])
+                # p 태그가 하나면 dict, 여러개면 list
+                if isinstance(p_text, dict):
+                    abstract = p_text.get('$', '')
+                elif isinstance(p_text, list):
+                    # 문단 합치기
+                    abstract = " ".join([p.get('$', '') for p in p_text if isinstance(p, dict)])
             
-            # Applicant
+            # 3. Applicant Extraction
             applicant = "Unknown"
-            apps = biblio.get('bibliographic-data', {}).get('parties', {}).get('applicants', {}).get('applicant', [])
-            if isinstance(apps, dict): apps = [apps]
-            if apps:
-                applicant = apps[0].get('applicant-name', {}).get('name', {}).get('$', 'Unknown')
+            parties = biblio_data.get('parties', {})
+            applicants = parties.get('applicants', {}).get('applicant', [])
+            if isinstance(applicants, dict): applicants = [applicants]
+            
+            if applicants:
+                # 첫 번째 출원인 이름 가져오기
+                app_name_obj = applicants[0].get('applicant-name', {}).get('name', {})
+                applicant = app_name_obj.get('$', 'Unknown')
                 
             return title, abstract, applicant
             
-        except Exception:
+        except Exception as e:
+            # 디버깅을 위해 에러 출력 (필요시 주석 처리)
+            # print(f"[EPOClient] Detail fetch failed for {country}{number}{kind}: {e}")
             return None, None, None
 
 if __name__ == "__main__":
     client = EPOClient()
+    # 테스트용 호출
+    # res = client.fetch_patents("liquid cooling")
+    # print(res)

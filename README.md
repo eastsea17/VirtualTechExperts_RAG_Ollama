@@ -150,9 +150,6 @@ Launch the web-based UI for an interactive experience:
 ```bash
 streamlit run streamlit_app.py
 ```
-<img width="1461" height="811" alt="image" src="https://github.com/user-attachments/assets/8c0c483d-6853-482c-a56f-886674e307e8" />
-
-
 
 **Features:**
 
@@ -162,6 +159,7 @@ streamlit run streamlit_app.py
 - **Live Debate Transcript**: View each persona's arguments with color-coded styling.
 - **Report Preview & Download**: View and download the HTML report directly in the browser.
 
+![Streamlit UI](streamlit_screen.png)
 
 ## Key Features (V2.2 Updates)
 
