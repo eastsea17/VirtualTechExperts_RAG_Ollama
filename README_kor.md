@@ -176,7 +176,7 @@ graph TD
     Gen -->|2순위| Syn["동의어 (Synonyms) <br/> *주제가 짧을 경우"]
     Gen -->|3순위| Relax["N-1 조합 (N-1 Combinations)"]
     
-    Exact & Syn & Relax --> Exec[적응형 실행 (Adaptive Execution)]
+    Exact & Syn & Relax --> Exec["적응형 실행 (Adaptive Execution)"]
     
     Exec --> Check{데이터 충분?}
     Check -->|Yes| End[종료 및 반환]
