@@ -21,7 +21,7 @@ class AdvancedDebateGraph:
     Supports Mode A (Sequential), Mode B (Parallel), Mode C (Consensus).
     """
     
-    def __init__(self, config_path: str = "config/config.yaml", personas_path: str = "config/personas.yaml"):
+    def __init__(self, config_path: str = "config/config.yaml", personas_path: str = "config/personas.yaml", model_name: str = None):
         with open(config_path, 'r') as f:
             self.config = yaml.safe_load(f)
         with open(personas_path, 'r') as f:
@@ -29,9 +29,12 @@ class AdvancedDebateGraph:
             
         self.max_turns = self.config.get('debate_rules', {}).get('max_turns_per_persona', 3)
         self.max_tokens = self.config.get('debate_rules', {}).get('max_tokens_per_turn', 300)
+        
+        # Use provided model_name, or fall back to config 'debate_model', then to hardcoded default
+        effective_model = model_name or self.config['ollama'].get('debate_model', "deepseek-v3.1:671b-cloud")
             
         self.llm = ChatOllama(
-            model=self.config['ollama']['chat_model'],
+            model=effective_model,
             base_url=self.config['ollama']['base_url'],
             temperature=0.7
         )

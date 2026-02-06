@@ -2,124 +2,195 @@ import yaml
 import re
 from typing import List, Tuple
 from langchain_ollama import ChatOllama
-from langchain_core.prompts import PromptTemplate
-from langchain_core.output_parsers import StrOutputParser
+import itertools
 
 class QueryExpander:
-    """
-    Expands user natural language queries into optimized boolean search strings
-    for OpenAlex, EPO and USPTO APIs using an LLM.
-    Adapted from ref_query_refiner.py.
-    """
-    
     def __init__(self, config_path: str = "config/config.yaml"):
         with open(config_path, 'r') as f:
             self.config = yaml.safe_load(f)
-            
+        
+        # User requested specific model for reporting, but for query expansion a fast smart model is good.
+        # We'll use the chat model or a specific one if defined.
+        self.model_name = self.config['ollama'].get('chat_model', "gpt-oss:120b-cloud")
+        self.base_url = self.config['ollama']['base_url']
+        
         self.llm = ChatOllama(
-            model=self.config['ollama']['chat_model'],
-            base_url=self.config['ollama']['base_url']
+            model=self.model_name,
+            base_url=self.base_url,
+            temperature=0.2 
         )
-        
-    def refine_search_query(self, user_input: str) -> Tuple[str, List[str]]:
+
+    def _extract_keywords(self, topic: str) -> List[str]:
         """
-        Converts user input into keywords and an optimized query string.
+        Extracts core technical phrases (not just words) from the topic.
         """
-        print(f"[QueryExpander] Optimizing search query for: '{user_input}'...")
-
-        template = """
-        You are a search query optimizer for an academic and patents database (OpenAlex, EPO and USPTO).
-        Convert the USER_INPUT into keyword phrases for academic paper search.
-
-        RULES:
-        1. Extract 2-4 core technical concepts (not individual words).
-        2. Wrap each concept in double quotes for exact phrase matching.
-        3. Separate phrases with spaces (no AND/OR operators).
-        4. Remove stop words (I want to, study about, etc.).
-        5. Convert to English if the input is in another language.
-        6. Output ONLY the query string, no explanation.
-
-        EXAMPLES:
-        USER_INPUT: "I want to improve the methodology for analyzing competitive relationships between companies by applying patent network analysis."
-        OPTIMIZED QUERY: "patent network" "competitive analysis"
-
-        USER_INPUT: "딥러닝을 활용한 배터리 수명 예측 연구"
-        OPTIMIZED QUERY: "deep learning" "battery life prediction"
-
-        USER_INPUT: "{user_input}"
-
-        OPTIMIZED QUERY:
+        prompt = f"""
+        Extract 2-5 specific technical phrases explicitly present in the research topic.
+        Do NOT add any related concepts or terms not found in the input text.
+        Do not split compound terms (e.g., keep "Solid State Batteries" as one phrase).
+        
+        TOPIC: "{topic}"
+        
+        OUTPUT FORMAT:
+        Return ONLY a comma-separated list of phrases without quotes.
+        Example: Solid State Batteries, Lithium Metal Anode
         """
-        
-        prompt = PromptTemplate(template=template, input_variables=["user_input"])
-        chain = prompt | self.llm | StrOutputParser()
-        
         try:
-            raw_query = chain.invoke({"user_input": user_input}).strip()
-            
-            # Post-processing to extract quoted keywords
-            keywords = re.findall(r'"([^"]*)"', raw_query)
-            
-            if keywords:
-                # Reconstruct query to ensure safety
-                optimized_query = " ".join([f'"{k}"' for k in keywords])
-            else:
-                # Fallback if LLM didn't return quotes
-                optimized_query = raw_query.replace('```', '').strip()
-                keywords = optimized_query.split() # Rough split if no quotes
-            
-            print(f"[QueryExpander] Optimized Query: '{optimized_query}'")
-            return optimized_query, keywords
-            
+            response = self.llm.invoke(prompt)
+            content = response.content.strip()
+            # Remove any quotes or brackets if LLM adds them
+            content = content.replace('"', '').replace('[', '').replace(']', '')
+            keywords = [k.strip() for k in content.split(',')]
+            # Simple cleanup
+            keywords = [k for k in keywords if k and len(k) > 2]
+            return keywords[:5] # Max 5 phrases
         except Exception as e:
-            print(f"[QueryExpander] Error in query expansion: {e}")
-            # Fallback: just use the input as is
-            return user_input, user_input.split()
+            print(f"[QueryExpander] Extraction Error: {e}")
+            return [topic]
 
-    def select_best_keyword_pair(self, keywords: List[str], user_input: str) -> str:
+    def _rank_combinations(self, topic: str, combos: List[Tuple[str]], limit: int = 2) -> List[Tuple[str]]:
         """
-        Selects the top 2 most relevant keywords if the list is too long,
-        to avoid over-filtering in the search API.
+        Asks LLM which keyword subsets best preserve the original topic's intent.
         """
-        if len(keywords) < 3:
-            return " ".join([f'"{k}"' for k in keywords])
+        # Format options for LLM
+        options_text = ""
+        for i, combo in enumerate(combos):
+            options_text += f"{i}. {', '.join(combo)}\n"
             
-        keywords_str = ", ".join([f'"{k}"' for k in keywords])
+        prompt = f"""
+        Original Topic: "{topic}"
         
-        template = """
-        You are selecting the 2 most important keywords for academic paper search.
-
-        USER_INTENT: "{user_input}"
-        AVAILABLE_KEYWORDS: {keywords_str}
-
-        RULES:
-        1. Select exactly 2 keywords that best capture the user's research intent.
-        2. Prioritize keywords that are most specific to the research topic.
-        3. Output ONLY the 2 selected keywords in double quotes, separated by space.
-
-        SELECTED KEYWORDS:
+        I have split the topic into keyword subsets to broaden the search.
+        Which of the following subsets best RETAINS the core technical intent of the original topic?
+        (i.e., Avoid dropping the most critical 'anchor' keyword).
+        
+        Options:
+        {options_text}
+        
+        Select the top {limit} indices.
+        RETURN ONLY the indices separated by commas (e.g., "0, 2").
         """
-        
-        prompt = PromptTemplate(template=template, input_variables=["user_input", "keywords_str"])
-        chain = prompt | self.llm | StrOutputParser()
-        
         try:
-            raw_response = chain.invoke({"user_input": user_input, "keywords_str": keywords_str}).strip()
-            selected = re.findall(r'"([^"]*)"', raw_response)
+            response = self.llm.invoke(prompt)
+            indices_str = response.content.strip()
+            # Parse indices like "0, 2" or "1"
+            indices = [int(x) for x in re.findall(r'\d+', indices_str)]
             
-            if len(selected) >= 2:
-                return f'"{selected[0]}" "{selected[1]}"'
-            elif len(selected) == 1:
-                return f'"{selected[0]}"'
-            else:
-                return f'"{keywords[0]}" "{keywords[1]}"'
+            selected_combos = []
+            for idx in indices:
+                if 0 <= idx < len(combos):
+                    selected_combos.append(combos[idx])
+            
+            if not selected_combos:
+                return combos[:limit]
+                
+            return selected_combos[:limit]
+        except Exception as e:
+            print(f"[QueryExpander] Ranking Error: {e}")
+            return combos[:limit] # Fallback to first ones
+
+    def generate_search_queries(self, topic: str) -> List[str]:
+        """
+        Generates a prioritized list of search queries.
+        1. Full Exact Query (Phrases AND-ed)
+        2. Top N-1 Combinations (if N >= 3)
+        """
+        # print(f"[QueryExpander] Analyzing topic: '{topic}'...")
+        keywords = self._extract_keywords(topic)
+        # print(f"[QueryExpander] Extracted Phrases: {keywords}")
+        
+        queries = []
+        
+        # Priority 1: Full Combination (Most Precise)
+        # Use simple ANDjoin of quotes. 
+        # Note: Some APIs might struggle with complex quotes, but standard for exact phrase is quotes.
+        full_query = " AND ".join([f'"{k}"' for k in keywords])
+        queries.append(full_query)
+        
+        N = len(keywords)
+        # If too simple, no need to relax
+        if N < 3:
+            return queries
+        
+        # Priority 2: N-1 Combinations
+        combos = list(itertools.combinations(keywords, N-1))
+        
+        if combos:
+            # print(f"[QueryExpander] Generating relaxation candidates (Total {len(combos)})...")
+            ranked_combos = self._rank_combinations(topic, combos, limit=2)
+            # print(f"[QueryExpander] Selected top {len(ranked_combos)} relaxed queries coverage.")
+            
+            for combo in ranked_combos:
+                sub_query = " AND ".join([f'"{k}"' for k in combo])
+                queries.append(sub_query)
+        
+        return queries
+
+    # Legacy method compatibility
+    def refine_search_query(self, topic: str) -> Tuple[str, List[str]]:
+        # This was the old signature returning (single_query, keywords)
+        # We will wrap new logic to return the PRIMARY query and the keywords
+        qs = self.generate_search_queries(topic)
+        keywords = self._extract_keywords(topic) # Redundant call but simple for legacy
+        return qs[0], keywords
+
+# --- Helper for Adaptive Fetching ---
+def adaptive_fetch(client_fetch_func, queries: List[str], limit: int, source_name: str) -> List[any]:
+    """
+    Executes search queries adaptively:
+    1. Try precise query first.
+    2. If sufficient results, stop.
+    3. If not, try fallback (relaxed) queries until limit or end.
+    """
+    all_results = []
+    seen_ids = set()
+    
+    # print(f"   [{source_name}] Adaptive Fetch with {len(queries)} queries...")
+    
+    for i, query in enumerate(queries):
+        try:
+            # print(f"      -> Q{i+1}: {query}")
+            results = client_fetch_func(query)
+            
+            new_count = 0
+            for item in results:
+                # Deduplicate based on 'id' or 'doi' or url depending on object
+                # Clients might return dicts or objects. 
+                # OpenAlex: dict with 'id'
+                # EPO: dict with 'publication_number' or similar
+                # Tavily: dict with 'url'
+                if isinstance(item, dict):
+                    unique_id = item.get('id') or item.get('url') or item.get('publication_number') or str(item)
+                else:
+                    unique_id = str(item)
+                
+                if unique_id not in seen_ids:
+                    all_results.append(item)
+                    seen_ids.add(unique_id)
+                    new_count += 1
+            
+            # Early Stop Conditions
+            # 1. If strict query (first one) returns enough results (e.g. > 50% of limit), we trust it.
+            if i == 0 and new_count >= (limit * 0.5):
+                # print(f"      -> Precise query found {new_count} items. Stopping early.")
+                break
+                
+            # 2. If we reached total limit
+            if len(all_results) >= limit:
+                # print(f"      -> Limit {limit} reached. Stopping.")
+                break
                 
         except Exception as e:
-            print(f"[QueryExpander] Error in keyword selection: {e}")
-            return f'"{keywords[0]}" "{keywords[1]}"'
+            print(f"      [{source_name}] Error fetching Q{i+1}: {e}")
+            continue
+            
+    return all_results[:limit]
 
 if __name__ == "__main__":
-    # Simple test
     qe = QueryExpander()
-    query, keys = qe.refine_search_query("Generative AI for Drug Discovery")
-    print(f"Result: {query}")
+    topic = "Co-processing of bio-based feedstock in FCC units"
+    queries = qe.generate_search_queries(topic)
+    print(f"Topic: {topic}")
+    print("Generated Queries:")
+    for q in queries:
+        print(f" - {q}")

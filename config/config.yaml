@@ -35,7 +35,7 @@ debate_rules:
 
 # --- Reporting ---
 reporting:
-  model: "deepseek-v3.1:671b-cloud" # As requested
+  model: "deepseek-v3.1:671b-cloud" # Used for Debate Simulation reports
 
 # --- Intelligence Engine Settings ---
 intelligence_engine:
@@ -43,13 +43,15 @@ intelligence_engine:
   collection_name: "virtual_experts_hub"
   chunk_size: 1000
   chunk_overlap: 200
-  retrieve_top_k: 5 # Number of chunks to retrieve per query
+  retrieve_top_k: 10 # Number of chunks to retrieve per query
 
 # --- Ollama Model Settings ---
 ollama:
   base_url: "http://localhost:11434"
-  # chat_model: "deepseek-r1:14b" # Local model (commented out) in your Ollama
-  chat_model: "deepseek-v3.1:671b-cloud" # Active Cloud Model
+  # Chatbot model for Virtual Tech Expert Hub
+  chat_model: "gpt-oss:120b-cloud"
+  # Debate/Report model for Virtual Debate Simulation
+  debate_model: "deepseek-v3.1:671b-cloud"
   embedding_model: "nomic-embed-text" # Ensure this model is pulled
 
 # --- System Settings ---

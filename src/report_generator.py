@@ -79,8 +79,13 @@ class ReportGenerator:
             html_content = response.content
             
             # 3. Save to File
+            safe_topic = "".join([c if c.isalnum() else "_" for c in topic]).strip("_")
+            # Limit length and remove duplicate underscores
+            import re
+            safe_topic = re.sub(r'_+', '_', safe_topic)[:50]
+            
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"{self.output_dir}/Report_{timestamp}.html"
+            filename = f"{self.output_dir}/{timestamp}_{safe_topic}.html"
             
             # Remove markdown code blocks if present
             # Remove markdown code blocks if present

@@ -7,13 +7,14 @@ import os
 # Ensure src is in path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '.')))
 
-from src.layer1.query_expander import QueryExpander
+from src.layer1.query_expander import QueryExpander, adaptive_fetch
 from src.layer1.openalex_client import OpenAlexClient
 from src.layer1.epo_client import EPOClient
 from src.layer1.uspto_client import USPTOClient
 from src.layer2.vector_store import VectorStoreManager
 from src.layer3.debate_graph import AdvancedDebateGraph
 from src.report_generator import ReportGenerator
+
 
 def main():
     # 1. Parse Arguments
@@ -143,15 +144,16 @@ def main():
     # 2. Layer 1: Data Acquisition
     print("\n--- Layer 1: Data Acquisition ---")
     qe = QueryExpander()
-    optimized_query, keywords = qe.refine_search_query(args.topic)
+    queries = qe.generate_search_queries(args.topic)
+    keywords = qe._extract_keywords(args.topic)
     
     # 2a. OpenAlex
     oa_client = OpenAlexClient()
-    papers = oa_client.fetch_papers(optimized_query)
+    papers = adaptive_fetch(oa_client.fetch_papers, queries, limit=20, source_name="OpenAlex")
     
     # 2b. EPO (Optional)
     epo_client = EPOClient()
-    patents_epo = epo_client.fetch_patents(keywords[0])
+    patents_epo = adaptive_fetch(epo_client.fetch_patents, queries, limit=20, source_name="EPO")
     
     # 2c. USPTO (New)
     uspto_client = USPTOClient()
@@ -160,7 +162,7 @@ def main():
     # 2d. Tavily (New)
     from src.layer1.market_client import MarketClient
     market_client = MarketClient()
-    market_news = market_client.fetch_market_news(args.topic) # Use topic directly or optimized query
+    market_news = adaptive_fetch(market_client.fetch_market_news, queries, limit=10, source_name="Tavily")
     
     combined_data = papers + patents_epo + patents_uspto + market_news
     if not combined_data:
