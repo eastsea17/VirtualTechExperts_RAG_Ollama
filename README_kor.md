@@ -8,10 +8,11 @@ VTE-R&D는 기술 조사 및 전략 수립 프로세스를 자동화하기 위�
 
 - **다중 소스 데이터 수집 (Multi-Source Data Acquisition)**:
   - **OpenAlex**: 학술 논문 (API 연동).
-  - **PatentsView (USPTO)**: 미국 특허.
-  - **EPO (유럽특허청)**: 유럽 특허.
-  - **Tavily (New)**: 실시간 시장 뉴스 및 비즈니스 인사이트.
+  - **PatentsView (USPTO)**: 미국 특허 (API 연동).
+  - **EPO (유럽특허청)**: 유럽 특허 (API 연동).
+  - **Tavily (New)**: 실시간 시장 뉴스 및 비즈니스 인사이트 (API 연동).
 - **지능형 쿼리 확장 (Intelligent Query Expansion)**:
+  - **0순위 (New)**: 1단어 분할 및 동의어 확장 (4단어 미만 핵심 주제 대상).
   - **동의어 인식 (Synonym-Aware)**: 기술적 동의어를 자동 생성하여 검색 (예: "bio-based" -> "bio-derived").
   - **적응형 N-1 전략 (Adaptive N-1 Strategy)**: 정확한 일치 -> 동의어 -> 완화된 쿼리 순으로 검색하여 재현율(Recall)을 극대화.
 - **순차적 전문가 ID**: 전문가들에게 읽기 쉬운 ID(예: `expert_1`, `expert_2`)를 부여하여 관리 용이성 증대.
@@ -165,24 +166,26 @@ graph TD
 
 ### 지능형 쿼리 확장 로직 (Intelligent Query Expansion Logic)
 
-이 시스템은 관련 데이터 수집을 극대화하면서도 노이즈를 최소화하기 위해 정교한 **적응형 N-1 전략(Adaptive N-1 Strategy)**을 사용합니다.
+ 이 시스템은 관련 데이터 수집을 극대화하면서도 노이즈를 최소화하기 위해 **우선순위 기반 적응형 전략(Priority-Based Adaptive Strategy)**을 사용합니다. 특히 짧은 기술 주제에 대해서는 "분할 및 확장(Split & Expand)" 전략을 최우선으로 적용합니다.
 
-```mermaid
-graph TD
-    Start[사용자 주제] --> Ext["키워드 추출 (LLM)"]
-    Ext --> Gen{쿼리 생성 전략}
-    
-    Gen -->|1순위| Exact["정확한 구문 (Exact Phrases)"]
-    Gen -->|2순위| Syn["동의어 (Synonyms) <br/> *주제가 짧을 경우"]
-    Gen -->|3순위| Relax["N-1 조합 (N-1 Combinations)"]
-    
-    Exact & Syn & Relax --> Exec["적응형 실행 (Adaptive Execution)"]
-    
-    Exec --> Check{데이터 충분?}
-    Check -->|Yes| End[종료 및 반환]
-    Check -->|No| Next[다음 순위 실행]
-    Next --> Exec
-```
+ ```mermaid
+ graph TD
+     Start[사용자 주제] --> Check{핵심 단어 < 4?}
+     
+     Check -->|Yes| P0["0순위: 1단어 분할 및 동의어 확장<br/>(단어당 최대 2개 동의어, EPO api call 횟수 제한으로 인해 4개 단어 이상일 경우 0순위 적용하지 않음)"]
+     Check -->|No| P1["1순위: 정확한 구문 (Exact Phrases)"]
+     
+     P0 --> P1
+     P1 --> P1_5["1.5순위: 단순 동의어"]
+     P1_5 --> P2["2순위: N-1 조합"]
+     
+     P0 & P1 & P1_5 & P2 --> Exec[적응형 실행 대기열]
+     
+     Exec --> Run{다음 쿼리 실행}
+     Run --> Eval{데이터 충분?}
+     Eval -->|Yes| Stop[종료 및 반환]
+     Eval -->|No| Run
+ ```
 
 ## 설정 (`config.yaml`)
 

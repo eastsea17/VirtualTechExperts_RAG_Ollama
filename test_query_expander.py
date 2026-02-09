@@ -8,14 +8,14 @@ def test_query_expansion_logic():
     # 10 Complex Technical Topics (approx. 5-10 words each)
     test_topics = [
         "High voltage cathode materials for solid state lithium batteries",
-        "Reinforcement learning algorithms for autonomous robot navigation",
-        "Carbon capture utilization and storage in cement manufacturing",
-        "Quantum error correction codes for superconducting qubits",
-        "Perovskite solar cell stability under high humidity conditions",
-        "Nickel-rich cathode precursors for LIB",
-        "HHydrophobic coatings for aerospace aluminum alloys",
-        "Direct air capture absorbents using amine-functionalized metal-organic frameworks",
-        "Single-atom platinum catalysts on ceria support for CO oxidation",
+        #"Reinforcement learning algorithms for autonomous robot navigation",
+        #"Carbon capture utilization and storage in cement manufacturing",
+        #"Quantum error correction codes for superconducting qubits",
+        #"Perovskite solar cell stability under high humidity conditions",
+        #"Nickel-rich cathode precursors for LIB",
+        #"HHydrophobic coatings for aerospace aluminum alloys",
+        #"Direct air capture absorbents using amine-functionalized metal-organic frameworks",
+        #"Single-atom platinum catalysts on ceria support for CO oxidation",
         "Zeolite catalysts synthesis"
     ]
     

@@ -12,6 +12,7 @@ VTE-R&D is an advanced AI agent system designed to automate technical research a
   - **EPO (European Patent Office)**: European Patents.
   - **Tavily (New)**: Real-time market news and business insights.
 - **Intelligent Query Expansion**:
+  - **Priority 0 (New)**: 1-Word Split & Synonym Expansion (for concise topics < 4 words).
   - **Synonym-Aware**: Automatically generates technical synonyms (e.g., "bio-based" -> "bio-derived").
   - **Adaptive N-1 Strategy**: Prioritizes exact matches, then synonyms, then relaxed queries to maximize recall.
 - **Sequential Expert IDs**: Experts are now assigned clean, readable IDs (e.g., `expert_1`, `expert_2`).
@@ -165,23 +166,25 @@ graph TD
 
 ### Intelligent Query Expansion Logic
 
-The system uses a sophisticated **Adaptive N-1 Strategy** to maximize relevant data retrieval while minimizing noise.
+The system uses a sophisticated **Priority-Based Adaptive Strategy** to maximize relevant data retrieval while minimizing noise. It includes a high-priority "Split & Expand" strategy for concise technical topics.
 
 ```mermaid
 graph TD
-    Start[User Topic] --> Ext["Extract Keywords (LLM)"]
-    Ext --> Gen{Generate Queries}
+    Start[User Topic] --> Check{Core Words < 4?}
     
-    Gen -->|Priority 1| Exact["Exact Phrases"]
-    Gen -->|Priority 2| Syn["Synonyms (if topic short)"]
-    Gen -->|Priority 3| Relax["N-1 Combinations"]
+    Check -->|Yes| P0["Priority 0: 1-Word Split & Synonyms<br/>(Max 2 Syns/Word, EPO Safe)"]
+    Check -->|No| P1["Priority 1: Exact Phrases"]
     
-    Exact & Syn & Relax --> Exec[Adaptive Execution]
+    P0 --> P1
+    P1 --> P1_5["Priority 1.5: Simple Synonyms"]
+    P1_5 --> P2["Priority 2: N-1 Combinations"]
     
-    Exec --> Check{Sufficient Data?}
-    Check -->|Yes| End[Stop & Return]
-    Check -->|No| Next[Try Next Priority]
-    Next --> Exec
+    P0 & P1 & P1_5 & P2 --> Exec[Adaptive Execution Queue]
+    
+    Exec --> Run{Run Next Query}
+    Run --> Eval{Sufficient Data?}
+    Eval -->|Yes| Stop[Stop & Return]
+    Eval -->|No| Run
 ```
 
 ## Configuration (`config.yaml`)

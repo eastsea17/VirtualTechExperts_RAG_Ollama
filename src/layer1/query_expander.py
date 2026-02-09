@@ -43,22 +43,47 @@ class QueryExpander:
         Returns:
             List[str]: 추출된 핵심 구문 리스트 (최대 5개)
         """
-        prompt = f"""
-        연구 주제에서 명시적으로 언급된 2~5개의 구체적인 기술 구문(Technical Phrases)을 추출하세요.
-        입력 텍스트에 없는 관련 개념이나 용어를 임의로 추가하지 마세요.
-        복합 용어는 분리하지 말고 하나의 구문으로 유지하세요 (예: "Solid State Batteries").
+        # 문장형 주제인지 확인 (10단어 이상)
+        is_long_sentence = len(topic.split()) >= 10
         
-        TOPIC: "{topic}"
-        
-        출력 형식:
-        따옴표 없이 쉼표로 구분된 구문 리스트만 반환하세요.
-        예시: Solid State Batteries, Lithium Metal Anode
-        """
+        prompt = ""
+        if is_long_sentence:
+            prompt = f"""
+            다음 연구 주제 문장에서 검색에 가장 중요한 핵심 키워드 3~5개를 추출하세요.
+            문장 전체를 그대로 반환하지 말고, 검색 효율을 높일 수 있는 명사구 위주로 추출하세요.
+            
+            FULL SENTENCE TOPIC: "{topic}"
+            
+            출력 형식:
+            따옴표 없이 쉼표로 구분된 리스트만 반환하세요.
+            예시: High voltage cathode, solid state batteries, interface stability
+            """
+        else:
+            prompt = f"""
+            연구 주제에서 명시적으로 언급된 2~5개의 구체적인 기술 구문(Technical Phrases)을 추출하세요.
+            입력 텍스트에 없는 관련 개념이나 용어를 임의로 추가하지 마세요.
+            복합 용어는 분리하지 말고 하나의 구문으로 유지하세요 (예: "Solid State Batteries").
+            
+            TOPIC: "{topic}"
+            
+            출력 형식:
+            따옴표 없이 쉼표로 구분된 구문 리스트만 반환하세요.
+            예시: Solid State Batteries, Lithium Metal Anode
+            """
+            
         try:
             response = self.llm.invoke(prompt)
             content = response.content.strip()
             # 불필요한 따옴표나 대괄호 제거
             content = content.replace('"', '').replace('[', '').replace(']', '')
+            
+            # Sentence handling: If topic is long, the model might be chatty.
+            # We enforce a stricter cleanup if the output looks like a sentence.
+            if len(content.split()) > 10 and ',' not in content:
+                # Fallback: if model returned a sentence instead of csv, try to split by space
+                # This is a basic fallback; usually the prompt enforces CSV.
+                pass 
+
             # 쉼표 기준으로 분리
             keywords = [k.strip() for k in content.split(',')]
             # 너무 짧거나 빈 키워드 제거
@@ -149,51 +174,150 @@ class QueryExpander:
             print(f"[QueryExpander] 순위 선정 오류: {e}")
             return combos[:limit] # 오류 시 앞부분 반환
 
+    def _count_core_words(self, topic: str) -> int:
+        """
+        주제에서 불용어(Stopwords)를 제외한 핵심 단어의 개수를 셉니다.
+        연구 관련 일반 명사(기술, 방법, 시스템 등)도 불용어로 처리하여 
+        핵심 기술 키워드만 카운트합니다.
+        """
+        stopwords = {
+            # English Prepositions & Conjunctions
+            'a', 'an', 'the', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 
+            'from', 'up', 'about', 'into', 'over', 'after', 'beneath', 'under', 
+            'above', 'the', 'and', 'or', 'but', 'is', 'are', 'was', 'were', 'be',
+            'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'can', 'could',
+            'should', 'would', 'will', 'may', 'might', 'must',
+            
+            # Common Research Terms (English) - treat as stop words for core count
+            'technology', 'technique', 'method', 'methodology', 'system', 'process',
+            'approach', 'study', 'research', 'analysis', 'survey', 'review',
+            'based', 'using', 'via', 'through',
+            
+            # Korean Common Terms (Research/Suffixes)
+            '기술', '시스템', '방법', '기법', '연구', '분석', '개발', '설계', '구현',
+            '기반', '활용', '이용', '적용', '관한', '대한'
+        }
+        words = topic.lower().split()
+        core_words = [w for w in words if w not in stopwords]
+        return len(core_words)
+
+    def _generate_synonym_expansion_query(self, topic: str) -> str:
+        """
+        [Priority 0 Strategy]
+        주제(Topic)를 1단어 단위로 쪼개어 각각의 핵심 단어에 대해 동의어를 생성하고,
+        (Word1 OR Syn1...) AND (Word2 OR Syn2...) 형태의 불리언 검색식을 생성합니다.
+        
+        핵심 단어(Token) 중심의 강력한 검색 전략입니다.
+        """
+        prompt = f"""
+        당신은 특허 및 논문 검색을 위한 전문 검색식 생성기입니다.
+        주어진 연구 주제(Topic)를 분석하여 다음 핵심 전략에 따라 검색식을 작성하세요.
+
+        [핵심 전략: 1-Word Split & Synonym Expansion]
+        1. 입력된 주제를 불용어(stop words)를 제외하고 **1단어 단위의 핵심 키워드**로 분리하세요.
+        2. 각 핵심 키워드에 대해 문맥에 맞는 **기술적 동의어(Synonyms)**를 생성하세요.
+           - **[중요]** 검색 엔진(EPO)의 단어 수 제한(10단어)을 준수하기 위해,
+             각 핵심 키워드당 **동의어는 최대 2개까지만** 추가하세요. (즉, 1개 그룹당 최대 3단어: 본래단어+동의어1+동의어2)
+        3. 각 키워드와 그 동의어들을 OR 연산자로 묶으세요 (그룹화).
+        4. 생성된 모든 그룹을 AND 연산자로 결합하세요.
+
+        [작성 규칙]
+        - 각 그룹은 반드시 괄호 ( ) 로 묶어야 합니다.
+        - 연산자는 대문자 AND, OR 를 사용하세요.
+        - 와일드카드(*) 사용이 가능합니다 (예: oxidat*).
+        - **전체 검색식에 포함된 총 단어 개수가 10개를 넘지 않도록 주의하세요.**
+        - **불필요한 설명 없이 오직 검색식 문자열 하나만 반환하세요.**
+
+        [예시 1]
+        Topic: "Metal water reaction 기술"
+        Core Words: Metal, water, reaction
+        Output: (Metal OR Alloy OR Metallic) AND (water OR aqueous OR H2O) AND (reaction OR interact OR oxidat*)
+
+        [예시 2]
+        Topic: "Mineral recoverty from water"
+        Core Words: Mineral, recovery, water
+        Output: (Mineral OR metal OR lithium) AND (recovery OR extract OR separation) AND (water OR wastewater OR brine)
+
+        [예시 3]
+        Topic: "ammonia craking"
+        Core Words: ammonia, cracking
+        Output: (ammonia AND (cracking OR decomposition OR dissociation))
+
+        ---
+        [실제 입력]
+        Topic: "{topic}"
+        Output: 
+        """
+        
+        try:
+            response = self.llm.invoke(prompt)
+            query = response.content.strip()
+            # 혹시 모를 앞뒤 따옴표 제거
+            query = query.strip('"').strip("'")
+            return query
+        except Exception as e:
+            print(f"[QueryExpander] 동의어 확장 쿼리 생성 오류: {e}")
+            return ""
+
     def generate_search_queries(self, topic: str) -> List[str]:
         """
         우선순위가 지정된 검색 쿼리 리스트를 생성합니다.
         
         전략:
-        1. 전체 정확 일치 (Full Exact Match): 추출된 모든 키워드를 AND로 연결
-        2. 동의어 (Synonyms): 주제가 짧을 경우 동의어 쿼리 추가
-        3. N-1 조합 (N-1 Combinations): 키워드가 3개 이상일 경우, 하나씩 뺀 조합으로 검색 범위 확장 (Fallback)
-        """
-        keywords = self._extract_keywords(topic)
+        0. [Priority 0] 1-Word Split & Synonym Expansion (조건부 실행)
+           - 주제의 **핵심 단어가 4개 미만**일 때만 실행합니다.
+           - 핵심 단어가 4개 이상이면 너무 구체적이거나 복잡하므로 이 전략을 건너뜁니다.
+           
+        1. [Priority 1] Full Exact Match (전체 정확 일치)
         
+        2. [Priority 2] N-1 Combinations (N-1 조합)
+           - 키워드가 3개 이상일 때 실행
+           
+        3. [Priority 3] Simple Synonyms
+           - 주제가 짧을 때 보조적으로 사용
+        """
         queries = []
+        
+        # 핵심 단어 개수 확인
+        core_word_count = self._count_core_words(topic)
+        
+        # [우선순위 0] 1-Word Split & Synonym Expansion
+        # 조건: 핵심 단어가 4개 미만일 때 (3개 이하)
+        if core_word_count < 4:
+            expanded_query = self._generate_synonym_expansion_query(topic)
+            if expanded_query:
+                queries.append(expanded_query)
+        else:
+            # 로그나 디버그용 (필요 시 주석 해제)
+            # print(f"[QueryExpander] Core words ({core_word_count}) >= 4. Skipping Priority 0.")
+            pass
+
+        keywords = self._extract_keywords(topic)
         
         # [우선순위 1] 전체 조합 (가장 정확함)
         # 키워드들을 AND로 연결하고 각각 따옴표로 감싸서 정확한 구문 검색(Phrase Match)을 유도합니다.
         full_query = " AND ".join([f'"{k}"' for k in keywords])
         queries.append(full_query)
         
-        # [우선순위 1.5] 동의어 검색
+        # [우선순위 1.5] 동의어 검색 (보조)
         if len(topic.split()) < 10:
             synonyms = self._generate_synonyms(topic)
             if synonyms:
                 for syn in synonyms:
-                    # 동의어 전체를 하나의 구문으로 검색
                     queries.append(f'"{syn}"')
         
         N = len(keywords)
         
-        # [중요] N-1 전략 제외 조건
-        # 키워드가 3개 미만(1개 또는 2개)일 때는 하나를 빼면(N-1) 너무 광범위한 단어만 남습니다.
-        # 예: "Ammonia Cracking" -> "Ammonia", "Cracking" (너무 넓음)
-        # 따라서 노이즈 방지를 위해 이 경우에는 확장하지 않고 종료합니다.
-        if N < 3:
-            return queries
-        
         # [우선순위 2] N-1 조합 (조금 더 넓은 검색)
-        combos = list(itertools.combinations(keywords, N-1))
-        
-        if combos:
-            # LLM을 통해 가장 의미 있는 조합 순으로 정렬
-            ranked_combos = self._rank_combinations(topic, combos, limit=2)
-            
-            for combo in ranked_combos:
-                sub_query = " AND ".join([f'"{k}"' for k in combo])
-                queries.append(sub_query)
+        # 키워드가 3개 이상일 때만 수행
+        if N >= 3:
+            combos = list(itertools.combinations(keywords, N-1))
+            if combos:
+                # LLM을 통해 가장 의미 있는 조합 순으로 정렬
+                ranked_combos = self._rank_combinations(topic, combos, limit=2)
+                for combo in ranked_combos:
+                    sub_query = " AND ".join([f'"{k}"' for k in combo])
+                    queries.append(sub_query)
         
         return queries
 

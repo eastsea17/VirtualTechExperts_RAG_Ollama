@@ -110,15 +110,22 @@ class EPOClient:
                  cql_query = f'ta="{clean_key}"'
         
         # [중요] 검색 필터 적용: 미국(US), 국제(WO), 유럽(EP) 특허만 검색
-        # pn=US% (와일드카드)는 API 오류(404)를 유발하므로, 정확한 국가 코드(pn="US")를 사용해야 함.
-        cql_query = f'({cql_query}) AND (pn="US" OR pn="WO" OR pn="EP")'
+        # 단, 쿼리가 이미 복잡한 경우(괄호 포함) 필터를 추가하면 EPO Term Limit(10개)을 초과할 수 있음.
+        # 따라서 복잡한 쿼리는 필터를 제외하고, 단순 쿼리에만 국가 필터를 적용함.
+        if '(' not in cql_query:
+            cql_query = f'({cql_query}) AND (pn="US" OR pn="WO" OR pn="EP")'
              
-        params = {'q': cql_query}
+        # GET 요청은 URL 길이 제한(413 Error)에 걸릴 수 있으므로 POST 방식 사용 권장
+        # Content-Type: text/plain으로 설정하고 쿼리를 그대로 Body에 담아 보냅니다.
+        headers["Content-Type"] = "text/plain"
+        
         search_url = f"{self.service_url}/published-data/search"
         
         try:
-            # API 요청 수행
-            response = requests.get(search_url, headers=headers, params=params, timeout=30)
+            # API 요청 수행 (POST)
+            # data에 딕셔너리가 아닌 문자열을 전달하면 requests는 text/plain으로 보내지 않으므로
+            # 명시적으로 헤더를 설정하고 문자열을 보냅니다.
+            response = requests.post(search_url, headers=headers, data=cql_query, timeout=30)
             
             # 검색 결과가 없는 경우 (404 Not Found는 에러가 아니라 '없음'으로 처리)
             if response.status_code == 404:
@@ -203,8 +210,11 @@ class EPOClient:
                     continue
             
             return results
+            return results
         except Exception as e:
             print(f"[EPOClient] 검색 중 오류 발생: {e}")
+            if hasattr(e, 'response') and e.response is not None:
+                print(f"[EPOClient] 상세 에러 메시지: {e.response.text}")
             return []
 
     def _fetch_patent_details(self, country, number, kind):
