@@ -132,12 +132,11 @@ def run_layer1_test():
     print(f"    ✅ Collected {len(epo_patents)} EPO patents.")
     all_collected_data.extend(normalize_data_for_csv(epo_patents, "EPO"))
     
-    # 4. USPTO Patents (Keyword-based)
+    # 4. USPTO Patents (Adaptive - Now supports Boolean)
     print("\n[4] Fetching Patents from USPTO...")
     uspto_client = USPTOClient()
-    # USPTO client usually takes a list of keywords or single string? 
-    # main.py passes 'keywords' (list).
-    uspto_patents = uspto_client.fetch_patents(keywords)
+    # Now using adaptive_fetch with boolean queries
+    uspto_patents = adaptive_fetch(uspto_client.fetch_patents, queries, limit=20, source_name="USPTO")
     print(f"    ✅ Collected {len(uspto_patents)} USPTO patents.")
     all_collected_data.extend(normalize_data_for_csv(uspto_patents, "USPTO"))
     
